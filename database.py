@@ -61,9 +61,22 @@ def init_db():
             CREATE TABLE IF NOT EXISTS loan_devices (
                 loan_id INTEGER NOT NULL,
                 device_id INTEGER NOT NULL,
+                returned_at TEXT,
                 PRIMARY KEY (loan_id, device_id),
                 FOREIGN KEY (loan_id) REFERENCES loans(id),
                 FOREIGN KEY (device_id) REFERENCES devices(id)
+            )
+        """)
+        # Atualiza bancos criados antes da devolução parcial sem apagar dados.
+        columns = rows(db.execute("PRAGMA table_info(loan_devices)"))
+        if "returned_at" not in {column["name"] for column in columns}:
+            db.execute("ALTER TABLE loan_devices ADD COLUMN returned_at TEXT")
+        db.execute("""
+            UPDATE loan_devices SET returned_at = (
+                SELECT COALESCE(l.returned_at, l.confirmed_at, l.requested_at)
+                FROM loans l WHERE l.id = loan_devices.loan_id
+            ) WHERE returned_at IS NULL AND loan_id IN (
+                SELECT id FROM loans WHERE status = 'returned'
             )
         """)
         db.execute("CREATE INDEX IF NOT EXISTS ix_loans_status ON loans(status)")
@@ -79,7 +92,7 @@ AVAILABLE_SQL = """
     WHERE NOT EXISTS (
         SELECT 1 FROM loan_devices ld
         JOIN loans l ON l.id = ld.loan_id
-        WHERE ld.device_id = d.id AND l.status = 'active'
+        WHERE ld.device_id = d.id AND l.status = 'active' AND ld.returned_at IS NULL
     )
     ORDER BY d.id
 """

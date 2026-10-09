@@ -2,9 +2,9 @@
 {% block title %}Histórico TI{% endblock %}
 {% block content %}
 <section class="heading"><div><p class="eyebrow">ÁREA DA TI</p><h1>Histórico</h1><p class="muted">Últimos 300 registros, do mais recente ao mais antigo.</p></div><a class="secondary-link" href="{{ url_for('admin_dashboard') }}">← Voltar ao painel</a></section>
-<section class="panel"><div class="table-wrap"><table><thead><tr><th>ID</th><th>Professor</th><th>Sala</th><th>Qtd.</th><th>Chromebooks</th><th>Solicitado</th><th>Retirado</th><th>Previsto</th><th>Devolvido</th><th>Status</th></tr></thead><tbody>
+<section class="panel"><div class="table-wrap"><table><thead><tr><th>ID</th><th>Professor</th><th>Sala</th><th>Retirados</th><th>Devolvidos</th><th>Em uso</th><th>Chromebooks</th><th>Retirado</th><th>Previsto</th><th>Devolução completa</th><th>Status</th></tr></thead><tbody>
 {% for loan in loans %}
-<tr><td>#{{ loan.id }}</td><td>{{ loan.professor_name }}</td><td>{{ loan.room }}</td><td>{{ loan.quantity }}</td><td>{{ loan.devices or '—' }}</td><td>{{ loan.requested_label }}</td><td>{{ loan.confirmed_label }}</td><td>{{ loan.expected_label }}</td><td>{{ loan.returned_label }}</td><td>{% if loan.overdue %}<span class="pill late">Atrasado</span>{% elif loan.status == 'returned' %}Devolvido{% elif loan.status == 'active' %}Em uso{% elif loan.status == 'cancelled' %}Cancelado{% else %}Pendente{% endif %}</td></tr>
-{% else %}<tr><td colspan="10" class="muted">Nenhum registro ainda.</td></tr>{% endfor %}
+<tr><td>#{{ loan.id }}</td><td>{{ loan.professor_name }}</td><td>{{ loan.room }}</td><td>{{ loan.quantity }}</td><td>{{ loan.returned_quantity }}</td><td>{{ loan.remaining_quantity }}</td><td>{{ loan.devices or '—' }}</td><td>{{ loan.taken_label }}</td><td>{{ loan.expected_label }}</td><td>{{ loan.returned_label }}</td><td>{% if loan.overdue %}<span class="pill late">Atrasado</span>{% elif loan.status == 'returned' %}Devolvido{% elif loan.status == 'active' %}Em uso{% elif loan.status == 'cancelled' %}Cancelado{% else %}Pendente (versão anterior){% endif %}</td></tr>
+{% else %}<tr><td colspan="11" class="muted">Nenhum registro ainda.</td></tr>{% endfor %}
 </tbody></table></div></section>
 {% endblock %}

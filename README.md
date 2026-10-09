@@ -4,11 +4,26 @@ MVP simples em **Python + Flask** para controle de **20 Chromebooks identificado
 
 ## Como funciona
 
-- **Professor (sem login):** abre `/retirada` pelo QR Code, informa nome, sala, quantidade e data/horário previstos para devolver. A data/hora de solicitação é registrada automaticamente.
-- **TI (senha administrativa):** acessa `/admin`, confirma a entrega física, vê os Chromebooks atribuídos e confirma a devolução.
-- **Histórico da TI:** `/admin/historico`. Os nomes e detalhes nunca aparecem publicamente.
-- **Estados:** pendente → em uso → devolvido, ou pendente → cancelado.
-- **Estoque:** pedidos pendentes NÃO reservam equipamentos. Somente a confirmação pela TI retira equipamentos do estoque; confirmações são feitas em transação. Quando o empréstimo termina, os equipamentos voltam a estar disponíveis.
+- **Professor (sem login):** abre `/retirada`, informa nome, sala, quantidade que está pegando e o **horário previsto de devolução de hoje**. O horário da retirada e a data são registrados automaticamente no fuso de São Paulo.
+- **Retirada imediata:** ao enviar, os equipamentos já ficam em uso, o estoque diminui e o registro aparece no painel da TI. Não há solicitação pendente nem aprovação de retirada.
+- **TI (senha administrativa):** acessa `/admin` para ver professor, quantidade em uso, horário da retirada, previsão de devolução e estoque disponível. Os registros aparecem ao abrir ou atualizar o painel; não há notificação externa.
+- **Devolução por quantidade:** a TI informa quantos equipamentos daquele registro voltaram. Se foram retirados 8 e devolvidos 3, o estoque aumenta em 3 e ainda ficam 5 em uso. O registro só é encerrado quando todos voltam.
+- **Horários:** o professor preenche apenas a hora prevista (ex.: `15:30`), que deve ser futura no mesmo dia. O sistema mantém as datas no histórico. A previsão não libera equipamentos automaticamente.
+- **Estoque:** retirada e atribuição de equipamentos são feitas na mesma transação, sem exceder os 20 Chromebooks. Cada devolução também atualiza o estoque em transação.
+- **Histórico da TI:** `/admin/historico` conserva quantidades retiradas, devolvidas e ainda em uso. Nomes e detalhes não aparecem publicamente.
+
+## Atualizar uma instalação existente
+
+Pare o servidor com `Ctrl+C` e faça uma cópia de segurança da pasta `instance`. Atualize os arquivos do projeto, preservando seu `.env` e a pasta `instance`. Antes de iniciar a nova versão, execute na pasta do projeto:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe scripts/init_db.py
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe app.py
+```
+
+A inicialização acrescenta o controle de devolução por equipamento ao banco existente sem apagar registros. Empréstimos ativos antigos continuam visíveis. Pedidos pendentes da versão anterior permanecem apenas no histórico, sem reservar estoque; para uma retirada real, faça um novo registro no formulário público.
 
 ## Rodar no computador (Windows, PowerShell)
 
@@ -57,7 +72,7 @@ A Vercel pode executar Flask sem servidor sempre ligado, mas **não oferece SQLi
 2. Descubra o endereço com `turso db show chromebooks-escola` e crie um token apropriado com `turso db tokens create chromebooks-escola`. Consulte a documentação do CLI se os comandos mudarem.
 3. Configure as variáveis `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SECRET_KEY` e `ADMIN_PASSWORD_HASH` no `.env` local para inicializar o banco remoto.
 4. Execute `python scripts/init_db.py` **uma vez** com essas variáveis, e confirme que os 20 equipamentos foram criados.
-5. Execute localmente o app ligado ao Turso e teste solicitação, confirmação, devolução e histórico. **A integração real com Turso ainda não foi verificada sem credenciais.**
+5. Execute localmente o app ligado ao Turso e teste retirada imediata, devolução parcial/completa e histórico. **A integração real com Turso ainda não foi verificada sem credenciais.**
 6. Publique os arquivos num repositório Git privado; importe na Vercel como projeto Flask (ponto de entrada `app.py`). No painel da Vercel, adicione as quatro variáveis. **Não envie `.env` nem tokens para o GitHub.**
 7. No navegador abra `https://seu-projeto.vercel.app/retirada`, gere um QR Code apontando para essa URL e coloque na sala após aprovação da escola.
 
@@ -71,13 +86,13 @@ A Vercel reconhece `app.py` automaticamente. Não é necessário `vercel.json` p
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-A suíte cobre regras de negócio em SQLite local (incluindo confirmações simultâneas), inicialização repetida, painel com mais de 100 pedidos, fluxo HTTP com o cliente de testes Flask, autenticação e rejeição de CSRF inválido. Turso remoto e Vercel ainda requerem validação adicional. Os comandos Windows foram documentados; a execução desta etapa foi validada em Linux com Python 3.12, sem uma máquina Windows disponível.
+A suíte cobre retirada imediata, saldo insuficiente, retiradas e devoluções simultâneas, devolução parcial e reutilização do estoque, horários inválidos, rollback, atualização de bancos antigos, inicialização repetida, fluxo HTTP Flask, autenticação e CSRF. Os testes usam um horário fixo para não depender da hora em que são executados. Turso remoto e Vercel ainda requerem validação adicional. Os comandos Windows foram documentados; a execução desta etapa foi validada em Linux com Python 3.12, sem uma máquina Windows disponível.
 
 ## Arquivos
 
 ```text
 app.py                  # Rotas Flask, formulários, sessão e senha da TI
-services.py             # Regras: pedidos, confirmação, devolução, histórico
+services.py             # Regras: retirada imediata, devolução parcial, histórico
 
 database.py             # SQLite local / Turso remoto e criação das tabelas
 templates/              # HTML simples, responsivo
@@ -91,9 +106,9 @@ PROMPTS-CODEX.md        # Passo a passo completo para evoluir no Codex
 
 ## Limitações atuais / próximos ajustes
 
-- Senha compartilhada de TI, sem rastrear individualmente quem aprovou. Pode evoluir para usuários separados.
+- Senha compartilhada de TI, sem rastrear individualmente quem registrou a devolução. Pode evoluir para usuários separados.
 - Histórico apresenta os 300 registros mais recentes, sem paginação/exportação.
-- Confirmação devolve todos os Chromebooks de um empréstimo; não há devolução parcial ou registro de avaria.
+- Devolução informada por quantidade, sem seleção dos códigos físicos ou registro de avaria. Os códigos são atribuídos e liberados automaticamente para controle de estoque.
 - Sem serviço de e-mail ou notificações.
 - Formulário público tem CSRF e honeypot, mas precisa de **rate limit persistente** para produção.
 - Testes em Turso remoto, concorrência entre funções Vercel e segurança da autenticação devem ser realizados antes da publicação oficial.
