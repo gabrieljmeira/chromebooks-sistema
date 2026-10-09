@@ -19,9 +19,10 @@
     <label for="room">Sala de utilização</label>
     <input id="room" name="room" type="text" maxlength="40" value="{{ request.form.get('room', '') }}" placeholder="Ex.: Sala 203" required>
     <label for="expected_return">Horário previsto de devolução — hoje</label>
-    <input id="expected_return" name="expected_return" type="time" min="{{ current_time }}" value="{{ request.form.get('expected_return', '') }}" required>
-    <p class="hint">O horário da retirada será registrado automaticamente ao enviar. Informe o horário em que pretende devolver hoje.</p>
+    <input id="expected_return" name="expected_return" type="text" inputmode="numeric" pattern="([01][0-9]|2[0-3]):?[0-5][0-9]" maxlength="5" placeholder="14:30" autocomplete="off" aria-describedby="return-time-hint" value="{{ request.form.get('expected_return', '') }}" required>
+    <p class="hint" id="return-time-hint">Digite o horário de hoje com 4 números, por exemplo, 1430 para 14:30. O horário da retirada é registrado automaticamente.</p>
     <button type="submit" class="primary" {% if available == 0 %}disabled{% endif %}>Registrar retirada</button>
   </form>
 </section>
+<script src="{{ url_for('static', filename='request.js') }}" defer></script>
 {% endblock %}

@@ -61,7 +61,7 @@ def test_duplicate_full_return_and_unknown_loan_are_rejected():
     assert stock_count() == 20
 
 
-@pytest.mark.parametrize('expected', [None, '', 'ontem', '25:00', '10:00', '09:59', '2026-10-10T15:00'])
+@pytest.mark.parametrize('expected', [None, '', 'ontem', '25:00', '12:60', 'abc15:00', '1:5', '15000', '10:00', '09:59', '2026-10-10T15:00'])
 def test_invalid_return_time_does_not_create_a_loan(expected):
     with pytest.raises(ValidationError):
         request_loan('Prof. Ana', '203', '4', expected)
@@ -164,3 +164,8 @@ def test_legacy_database_is_upgraded_without_losing_history():
     assert stock_count() == 18
     return_loan(second, '1')
     assert stock_count() == 19
+
+
+def test_return_time_accepts_four_digits_without_javascript():
+    request_loan('Prof. Ana', '203', '1', '1530')
+    assert get_history()[0]['expected_return_at'].endswith('15:30:00-03:00')
