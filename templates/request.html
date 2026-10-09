@@ -1,10 +1,10 @@
 {% extends 'base.html' %}
-{% block title %}Solicitar Chromebooks{% endblock %}
+{% block title %}Registrar retirada{% endblock %}
 {% block content %}
 <section class="panel narrow">
   <p class="eyebrow">PROFESSORES</p>
-  <h1>Solicitação de Chromebooks</h1>
-  <p class="muted">Informe os dados da retirada. A equipe de TI confirmará a entrega dos equipamentos.</p>
+  <h1>Retirada de Chromebooks</h1>
+  <p class="muted">Registre os Chromebooks que você está pegando. A retirada aparecerá diretamente no painel da TI.</p>
   <div class="availability"><strong>{{ available }}</strong> de 20 Chromebooks disponíveis neste momento</div>
   <form method="post" class="stack">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
@@ -19,11 +19,11 @@
     </select>
     <label for="room">Sala de utilização</label>
     <input id="room" name="room" type="text" maxlength="40" value="{{ request.form.get('room', '') }}" placeholder="Ex.: Sala 203" required>
-    <label for="expected_return">Data e horário previstos de devolução</label>
-    <input id="expected_return" name="expected_return" type="datetime-local" min="{{ current_date }}" value="{{ request.form.get('expected_return', '') }}" required>
-    <p class="hint">O horário da solicitação será salvo automaticamente. O horário real de retirada será registrado pela TI.</p>
-    <button type="submit" class="primary" {% if available == 0 %}disabled{% endif %}>Enviar solicitação</button>
+    <label for="expected_return">Horário previsto de devolução — hoje</label>
+    <input id="expected_return" name="expected_return" type="time" min="{{ current_time }}" value="{{ request.form.get('expected_return', '') }}" required>
+    <p class="hint">O horário da retirada será registrado automaticamente ao enviar. Informe o horário em que pretende devolver hoje.</p>
+    <button type="submit" class="primary" {% if available == 0 %}disabled{% endif %}>Registrar retirada</button>
   </form>
-  <p class="footnote">Solicitar não significa retirar: aguarde a conferência da TI.</p>
+  <p class="footnote">Ao registrar, a quantidade é descontada imediatamente dos equipamentos disponíveis. Não é necessária aprovação da TI.</p>
 </section>
 {% endblock %}

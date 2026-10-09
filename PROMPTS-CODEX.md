@@ -1,5 +1,7 @@
 # Prompts do Codex — Controle de Chromebooks
 
+> **Regra atual, alterada a pedido do usuário:** o professor registra a retirada diretamente, com baixa imediata de estoque e horário automático. Informa apenas a hora prevista para devolver no mesmo dia. A TI não aprova retiradas: acompanha o painel e registra a quantidade devolvida, incluindo devoluções parciais. Preserve essa regra ao usar os prompts abaixo; trechos sobre pedidos pendentes, confirmação de entrega ou ausência de devolução parcial descrevem o fluxo antigo e foram substituídos. Consulte o README para o funcionamento atual.
+
 Abra a pasta do projeto no Codex. Execute estes prompts **em sequência**, conferindo as mudanças de cada etapa. Eles partem dos arquivos já incluídos; **não peça ao Codex para recomeçar do zero**. Faça commits entre etapas e nunca forneça credenciais reais no chat.
 
 ---

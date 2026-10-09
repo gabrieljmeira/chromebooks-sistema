@@ -11,7 +11,7 @@ from flask import Flask, abort, flash, redirect, render_template, request, sessi
 from werkzeug.security import check_password_hash
 
 from services import (
-    ValidationError, cancel_loan, confirm_loan, get_dashboard, get_history,
+    ValidationError, get_dashboard, get_history,
     now, request_loan, return_loan, stock_count,
 )
 
@@ -82,7 +82,7 @@ def retirada():
             flash(str(exc), "error")
         else:
             return redirect(url_for("success", request_id=request_id))
-    return render_template("request.html", available=stock_count(), current_date=now().strftime("%Y-%m-%dT%H:%M"))
+    return render_template("request.html", available=stock_count(), current_time=now().strftime("%H:%M"))
 
 
 @app.get("/enviado/<int:request_id>")
@@ -130,37 +130,13 @@ def admin_history():
     return render_template("history.html", loans=get_history())
 
 
-@app.post("/admin/confirmar/<int:loan_id>")
-@admin_required
-def admin_confirm(loan_id):
-    check_csrf()
-    try:
-        confirm_loan(loan_id)
-        flash("Retirada confirmada. Equipamentos atribuídos automaticamente.", "success")
-    except ValidationError as exc:
-        flash(str(exc), "error")
-    return redirect(url_for("admin_dashboard"))
-
-
 @app.post("/admin/devolver/<int:loan_id>")
 @admin_required
 def admin_return(loan_id):
     check_csrf()
     try:
-        return_loan(loan_id)
-        flash("Devolução registrada.", "success")
-    except ValidationError as exc:
-        flash(str(exc), "error")
-    return redirect(url_for("admin_dashboard"))
-
-
-@app.post("/admin/cancelar/<int:loan_id>")
-@admin_required
-def admin_cancel(loan_id):
-    check_csrf()
-    try:
-        cancel_loan(loan_id)
-        flash("Solicitação cancelada.", "success")
+        return_loan(loan_id, request.form.get("quantity"))
+        flash("Devolução registrada. Estoque atualizado.", "success")
     except ValidationError as exc:
         flash(str(exc), "error")
     return redirect(url_for("admin_dashboard"))

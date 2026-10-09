@@ -1,7 +1,7 @@
 """Regras de negócio, sem dependência de Flask."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from database import AVAILABLE_SQL, connect, one, rows
@@ -31,15 +31,15 @@ def stock_count():
         db.close()
 
 
-def _parse_expected(raw):
+def _parse_expected(raw, current):
     try:
-        expected = datetime.strptime(raw, "%Y-%m-%dT%H:%M").replace(tzinfo=TZ)
+        expected = datetime.strptime(raw, "%H:%M").replace(
+            year=current.year, month=current.month, day=current.day, tzinfo=TZ,
+        )
     except (ValueError, TypeError):
-        raise ValidationError("Informe uma data e um horário válidos para a devolução.")
-    if expected <= now():
-        raise ValidationError("A devolução prevista precisa ser no futuro.")
-    if expected > now() + timedelta(days=30):
-        raise ValidationError("A devolução deve ser prevista para os próximos 30 dias.")
+        raise ValidationError("Informe um horário válido para a devolução.")
+    if expected <= current:
+        raise ValidationError("A devolução prevista deve ser em um horário futuro de hoje.")
     return expected
 
 
@@ -56,49 +56,28 @@ def request_loan(professor_name, room, quantity, expected_raw):
         raise ValidationError("Escolha uma quantidade válida de Chromebooks.")
     if str(quantity) != str(qty) or not 1 <= qty <= 20:
         raise ValidationError("A quantidade precisa ser de 1 a 20.")
-    expected = _parse_expected(expected_raw)
     db = connect()
     try:
-        # Solicitações não reservam equipamentos; só a TI confirma a entrega.
-        if qty > len(rows(db.execute(AVAILABLE_SQL))):
+        # Registro e estoque mudam juntos; duas retiradas não usam o mesmo saldo.
+        _transaction(db)
+        current = now()
+        expected = _parse_expected(expected_raw, current)
+        free = rows(db.execute(AVAILABLE_SQL))
+        if qty > len(free):
             raise ValidationError("Não há essa quantidade disponível no momento.")
+        taken_at = current.isoformat(timespec="seconds")
+        # Mantém as colunas existentes para preservar bancos e históricos antigos.
         db.execute("""
-            INSERT INTO loans (professor_name, room, quantity, requested_at, expected_return_at)
-            VALUES (?, ?, ?, ?, ?)
-        """, (name, room, qty, now().isoformat(timespec="seconds"), expected.isoformat(timespec="seconds")))
-        # SELECT na mesma conexão para recuperar a chave mesmo no driver remoto.
+            INSERT INTO loans (
+                professor_name, room, quantity, requested_at,
+                expected_return_at, confirmed_at, status
+            ) VALUES (?, ?, ?, ?, ?, ?, 'active')
+        """, (name, room, qty, taken_at, expected.isoformat(timespec="seconds"), taken_at))
         new_id = one(db.execute("SELECT last_insert_rowid() AS id"))["id"]
+        for device in free[:qty]:
+            db.execute("INSERT INTO loan_devices (loan_id, device_id) VALUES (?, ?)", (new_id, device["id"]))
         db.commit()
         return int(new_id)
-    finally:
-        db.close()
-
-
-def _transaction(db):
-    # Serializa confirmação de empréstimos concorrentes no SQLite;
-    # Codex deve validar comportamento transacional no Turso remoto.
-    db.execute("BEGIN IMMEDIATE")
-
-
-def confirm_loan(loan_id):
-    db = connect()
-    try:
-        _transaction(db)
-        loan = one(db.execute("SELECT * FROM loans WHERE id = ?", (loan_id,)))
-        if not loan or loan["status"] != "pending":
-            raise ValidationError("Solicitação inexistente ou já processada.")
-        if datetime.fromisoformat(loan["expected_return_at"]) <= now():
-            raise ValidationError("A previsão de devolução já passou. Cancele e solicite novamente.")
-        free = rows(db.execute(AVAILABLE_SQL))
-        if len(free) < loan["quantity"]:
-            raise ValidationError("Não há Chromebooks suficientes para confirmar esta retirada.")
-        for device in free[:loan["quantity"]]:
-            db.execute("INSERT INTO loan_devices (loan_id, device_id) VALUES (?, ?)", (loan_id, device["id"]))
-        db.execute("""
-            UPDATE loans SET status = 'active', confirmed_at = ?
-            WHERE id = ? AND status = 'pending'
-        """, (now().isoformat(timespec="seconds"), loan_id))
-        db.commit()
     except Exception:
         db.rollback()
         raise
@@ -106,33 +85,41 @@ def confirm_loan(loan_id):
         db.close()
 
 
-def return_loan(loan_id):
+def _transaction(db):
+    # Serializa alterações de estoque no SQLite. Turso remoto requer validação.
+    db.execute("BEGIN IMMEDIATE")
+
+
+def return_loan(loan_id, quantity):
     db = connect()
     try:
         _transaction(db)
         loan = one(db.execute("SELECT status FROM loans WHERE id = ?", (loan_id,)))
         if not loan or loan["status"] != "active":
             raise ValidationError("Somente retiradas ativas podem ser devolvidas.")
-        db.execute("""
-            UPDATE loans SET status = 'returned', returned_at = ?
-            WHERE id = ? AND status = 'active'
-        """, (now().isoformat(timespec="seconds"), loan_id))
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
-
-
-def cancel_loan(loan_id):
-    db = connect()
-    try:
-        _transaction(db)
-        loan = one(db.execute("SELECT status FROM loans WHERE id = ?", (loan_id,)))
-        if not loan or loan["status"] != "pending":
-            raise ValidationError("Somente solicitações pendentes podem ser canceladas.")
-        db.execute("UPDATE loans SET status = 'cancelled' WHERE id = ?", (loan_id,))
+        try:
+            qty = int(quantity)
+        except (ValueError, TypeError):
+            raise ValidationError("Informe quantos Chromebooks foram devolvidos.")
+        if str(quantity) != str(qty) or qty < 1:
+            raise ValidationError("A quantidade devolvida precisa ser um número inteiro maior que zero.")
+        outstanding = rows(db.execute("""
+            SELECT device_id FROM loan_devices
+            WHERE loan_id = ? AND returned_at IS NULL ORDER BY device_id
+        """, (loan_id,)))
+        if qty > len(outstanding):
+            raise ValidationError("A quantidade devolvida não pode superar os equipamentos ainda em uso neste registro.")
+        returned_at = now().isoformat(timespec="seconds")
+        for device in outstanding[:qty]:
+            db.execute("""
+                UPDATE loan_devices SET returned_at = ?
+                WHERE loan_id = ? AND device_id = ? AND returned_at IS NULL
+            """, (returned_at, loan_id, device["device_id"]))
+        if qty == len(outstanding):
+            db.execute("""
+                UPDATE loans SET status = 'returned', returned_at = ?
+                WHERE id = ? AND status = 'active'
+            """, (returned_at, loan_id))
         db.commit()
     except Exception:
         db.rollback()
@@ -144,35 +131,40 @@ def cancel_loan(loan_id):
 def _hydrate(loans):
     current = now()
     for loan in loans:
-        loan["requested_label"] = datetime_label(loan["requested_at"])
         loan["expected_label"] = datetime_label(loan["expected_return_at"])
-        loan["confirmed_label"] = datetime_label(loan["confirmed_at"])
+        loan["taken_label"] = datetime_label(loan["confirmed_at"])
         loan["returned_label"] = datetime_label(loan["returned_at"])
         loan["overdue"] = (loan["status"] == "active" and
                            datetime.fromisoformat(loan["expected_return_at"]) < current)
     return loans
 
 
+def _attach_devices(db, loans):
+    for loan in loans:
+        devices = rows(db.execute("""
+            SELECT d.code, ld.returned_at FROM loan_devices ld
+            JOIN devices d ON d.id = ld.device_id
+            WHERE ld.loan_id = ? ORDER BY d.id
+        """, (loan["id"],)))
+        outstanding = [d for d in devices if not d["returned_at"] and loan["status"] == "active"]
+        loan["devices"] = ", ".join(d["code"] for d in devices)
+        loan["outstanding_devices"] = ", ".join(d["code"] for d in outstanding)
+        loan["remaining_quantity"] = len(outstanding)
+        loan["returned_quantity"] = sum(bool(d["returned_at"]) for d in devices)
+    return _hydrate(loans)
+
+
 def get_dashboard():
     db = connect()
     try:
-        # Pedidos pendentes não são limitados pelo estoque. Não oculte retiradas
-        # ativas nem altere os contadores ao acumular novas solicitações.
-        loans = rows(db.execute("SELECT * FROM loans WHERE status IN ('pending','active') ORDER BY id DESC"))
-        for loan in loans:
-            loan["devices"] = ", ".join(r["code"] for r in rows(db.execute("""
-                SELECT d.code FROM loan_devices ld JOIN devices d ON d.id = ld.device_id
-                WHERE ld.loan_id = ? ORDER BY d.id
-            """, (loan["id"],))))
-        loans = _hydrate(loans)
+        loans = rows(db.execute("SELECT * FROM loans WHERE status = 'active' ORDER BY id DESC"))
+        loans = _attach_devices(db, loans)
         available = len(rows(db.execute(AVAILABLE_SQL)))
         return {
             "available": available,
             "in_use": 20 - available,
-            "pending_count": sum(l["status"] == "pending" for l in loans),
             "overdue_count": sum(l["overdue"] for l in loans),
-            "pending": [l for l in loans if l["status"] == "pending"],
-            "active": [l for l in loans if l["status"] == "active"],
+            "active": loans,
         }
     finally:
         db.close()
@@ -182,11 +174,6 @@ def get_history():
     db = connect()
     try:
         loans = rows(db.execute("SELECT * FROM loans ORDER BY id DESC LIMIT 300"))
-        for loan in loans:
-            loan["devices"] = ", ".join(r["code"] for r in rows(db.execute("""
-                SELECT d.code FROM loan_devices ld JOIN devices d ON d.id = ld.device_id
-                WHERE ld.loan_id = ? ORDER BY d.id
-            """, (loan["id"],))))
-        return _hydrate(loans)
+        return _attach_devices(db, loans)
     finally:
         db.close()

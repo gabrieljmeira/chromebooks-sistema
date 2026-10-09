@@ -2,35 +2,25 @@
 {% block title %}Painel TI{% endblock %}
 {% block content %}
 <section class="heading">
-  <div><p class="eyebrow">ÁREA DA TI</p><h1>Painel de empréstimos</h1><p class="muted">Confira a retirada e a devolução dos equipamentos.</p></div>
+  <div><p class="eyebrow">ÁREA DA TI</p><h1>Painel de empréstimos</h1><p class="muted">Acompanhe quem pegou os equipamentos e o horário previsto de devolução.</p></div>
   <a class="secondary-link" href="{{ url_for('admin_history') }}">Ver histórico →</a>
 </section>
 <div class="stats">
   <div class="stat"><span>Disponíveis</span><strong>{{ data.available }}</strong></div>
   <div class="stat"><span>Em uso</span><strong>{{ data.in_use }}</strong></div>
-  <div class="stat"><span>Solicitações pendentes</span><strong>{{ data.pending_count }}</strong></div>
+  <div class="stat"><span>Total de equipamentos</span><strong>20</strong></div>
   <div class="stat"><span>Atrasados</span><strong class="{% if data.overdue_count %}danger-text{% endif %}">{{ data.overdue_count }}</strong></div>
 </div>
 <section class="panel">
-  <h2>Aguardando confirmação</h2>
-  <p class="muted">Apenas a TI confirma a entrega física dos equipamentos.</p>
-  <div class="table-wrap"><table><thead><tr><th>ID</th><th>Professor</th><th>Sala</th><th>Qtd.</th><th>Solicitação</th><th>Devolução prevista</th><th>Ações</th></tr></thead><tbody>
-  {% for loan in data.pending %}
-  <tr><td>#{{ loan.id }}</td><td>{{ loan.professor_name }}</td><td>{{ loan.room }}</td><td>{{ loan.quantity }}</td><td>{{ loan.requested_label }}</td><td>{{ loan.expected_label }}</td><td class="actions">
-    <form method="post" action="{{ url_for('admin_confirm', loan_id=loan.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="small primary" type="submit">Confirmar entrega</button></form>
-    <form method="post" action="{{ url_for('admin_cancel', loan_id=loan.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="small ghost" type="submit">Cancelar</button></form>
-  </td></tr>
-  {% else %}<tr><td colspan="7" class="muted">Nenhuma solicitação pendente.</td></tr>{% endfor %}
-  </tbody></table></div>
-</section>
-<section class="panel">
   <h2>Empréstimos ativos</h2>
-  <div class="table-wrap"><table><thead><tr><th>ID</th><th>Professor</th><th>Sala</th><th>Equipamentos</th><th>Retirada real</th><th>Previsão</th><th>Situação</th><th>Ação</th></tr></thead><tbody>
+  <div class="table-wrap"><table><thead><tr><th>ID</th><th>Professor</th><th>Sala</th><th>Em uso / retirados</th><th>Equipamentos</th><th>Horário da retirada</th><th>Devolução prevista</th><th>Situação</th><th>Ação</th></tr></thead><tbody>
   {% for loan in data.active %}
-  <tr><td>#{{ loan.id }}</td><td>{{ loan.professor_name }}</td><td>{{ loan.room }}</td><td>{{ loan.devices }}</td><td>{{ loan.confirmed_label }}</td><td>{{ loan.expected_label }}</td><td><span class="pill {% if loan.overdue %}late{% else %}ok{% endif %}">{{ 'Atrasado' if loan.overdue else 'Em uso' }}</span></td><td>
-    <form method="post" action="{{ url_for('admin_return', loan_id=loan.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="small primary" type="submit">Confirmar devolução</button></form>
+  <tr><td>#{{ loan.id }}</td><td>{{ loan.professor_name }}</td><td>{{ loan.room }}</td><td>{{ loan.remaining_quantity }} / {{ loan.quantity }}</td><td>{{ loan.outstanding_devices }}</td><td>{{ loan.taken_label }}</td><td>{{ loan.expected_label }}</td><td><span class="pill {% if loan.overdue %}late{% else %}ok{% endif %}">{{ 'Atrasado' if loan.overdue else 'Em uso' }}</span></td><td>
+    <form method="post" action="{{ url_for('admin_return', loan_id=loan.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><label for="return-{{ loan.id }}">Quantidade devolvida</label>
+      <input id="return-{{ loan.id }}" type="number" name="quantity" min="1" max="{{ loan.remaining_quantity }}" step="1" required style="width: 5rem">
+      <button class="small primary" type="submit">Registrar devolução</button></form>
   </td></tr>
-  {% else %}<tr><td colspan="8" class="muted">Nenhum equipamento em uso.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="9" class="muted">Nenhum equipamento em uso.</td></tr>{% endfor %}
   </tbody></table></div>
 </section>
 {% endblock %}
