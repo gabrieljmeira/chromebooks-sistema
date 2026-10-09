@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>{% block title %}Chromebooks | Escola{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="page">
+    <header class="site-header">
+      <a href="{{ url_for('retirada') }}" class="brand">▣ Controle de Chromebooks</a>
+      {% if session.get('admin') %}
+      <nav aria-label="Painel TI">
+        <a href="{{ url_for('admin_dashboard') }}">Painel</a>
+        <a href="{{ url_for('admin_history') }}">Histórico</a>
+        <form action="{{ url_for('admin_logout') }}" method="post" class="inline-form">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          <button class="nav-button" type="submit">Sair</button>
+        </form>
+      </nav>
+      {% endif %}
+    </header>
+    <main>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <p class="notice {{ category }}" role="status">{{ message }}</p>
+      {% endfor %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+    <footer>Controle interno de equipamentos • Projeto escolar</footer>
+  </div>
+</body>
+</html>
