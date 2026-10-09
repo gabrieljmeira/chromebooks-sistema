@@ -78,7 +78,7 @@ def test_invalid_csrf_is_rejected_without_server_error(client, token):
 def test_stale_form_cannot_take_more_than_available(client):
     from services import request_loan
     page = client.get('/retirada')
-    assert b'type="time"' in page.data
+    assert b'inputmode="numeric"' in page.data
     assert b'datetime-local' not in page.data
     request_loan('Prof. Bruno', '204', '18', '15:00')
     response = client.post('/retirada', data={

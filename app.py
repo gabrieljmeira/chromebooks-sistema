@@ -12,7 +12,7 @@ from werkzeug.security import check_password_hash
 
 from services import (
     ValidationError, get_dashboard, get_history,
-    now, request_loan, return_loan, stock_count,
+    request_loan, return_loan, stock_count,
 )
 
 load_dotenv()
@@ -82,7 +82,7 @@ def retirada():
             flash(str(exc), "error")
         else:
             return redirect(url_for("success", request_id=request_id))
-    return render_template("request.html", available=stock_count(), current_time=now().strftime("%H:%M"))
+    return render_template("request.html", available=stock_count())
 
 
 @app.get("/enviado/<int:request_id>")

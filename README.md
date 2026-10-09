@@ -8,7 +8,7 @@ MVP simples em **Python + Flask** para controle de **20 Chromebooks identificado
 - **Retirada imediata:** ao enviar, os equipamentos já ficam em uso, o estoque diminui e o registro aparece no painel da TI. Não há solicitação pendente nem aprovação de retirada.
 - **TI (senha administrativa):** acessa `/admin` para ver professor, quantidade em uso, horário da retirada, previsão de devolução e estoque disponível. Os registros aparecem ao abrir ou atualizar o painel; não há notificação externa.
 - **Devolução por quantidade:** a TI informa quantos equipamentos daquele registro voltaram. Se foram retirados 8 e devolvidos 3, o estoque aumenta em 3 e ainda ficam 5 em uso. O registro só é encerrado quando todos voltam.
-- **Horários:** o professor preenche apenas a hora prevista (ex.: `15:30`), que deve ser futura no mesmo dia. O sistema mantém as datas no histórico. A previsão não libera equipamentos automaticamente.
+- **Horários:** no celular, o campo solicita teclado numérico. Digitar `1530` formata automaticamente como `15:30`; os dois formatos também são aceitos sem JavaScript. O professor preenche apenas a hora prevista, que deve ser futura no mesmo dia. O sistema mantém as datas no histórico. A previsão não libera equipamentos automaticamente.
 - **Estoque:** retirada e atribuição de equipamentos são feitas na mesma transação, sem exceder os 20 Chromebooks. Cada devolução também atualiza o estoque em transação.
 - **Histórico da TI:** `/admin/historico` conserva quantidades retiradas, devolvidas e ainda em uso. Nomes e detalhes não aparecem publicamente.
 
@@ -88,6 +88,8 @@ A Vercel reconhece `app.py` automaticamente. Não é necessário `vercel.json` p
 
 A suíte cobre retirada imediata, saldo insuficiente, retiradas e devoluções simultâneas, devolução parcial e reutilização do estoque, horários inválidos, rollback, atualização de bancos antigos, inicialização repetida, fluxo HTTP Flask, autenticação e CSRF. Os testes usam um horário fixo para não depender da hora em que são executados. Turso remoto e Vercel ainda requerem validação adicional. Os comandos Windows foram documentados; a execução desta etapa foi validada em Linux com Python 3.12, sem uma máquina Windows disponível.
 
+A página de retirada também foi verificada em Chromium com telas emuladas de 320, 360, 390 e 412 px, em modo horizontal de 844 × 390 px e em tablet/desktop. Foram conferidos limites da tela, campos e botão de pelo menos 48 px, fonte de 16 px, formatação do horário, rejeição de horários inválidos, envio e uso sem JavaScript. O teclado do sistema e o Safari em um iPhone físico ainda precisam ser conferidos no aparelho.
+
 ## Arquivos
 
 ```text
@@ -96,7 +98,8 @@ services.py             # Regras: retirada imediata, devolução parcial, histó
 
 database.py             # SQLite local / Turso remoto e criação das tabelas
 templates/              # HTML simples, responsivo
-static/styles.css       # Visual limpo, sem frameworks visuais
+static/styles.css       # Visual responsivo, sem frameworks visuais
+static/request.js       # Formata o horário digitado com teclado numérico
 scripts/init_db.py      # Inicializa DB e registra CH-001 a CH-020
 scripts/create_admin_hash.py
 

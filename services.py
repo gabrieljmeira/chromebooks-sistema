@@ -1,6 +1,7 @@
 """Regras de negócio, sem dependência de Flask."""
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -32,6 +33,10 @@ def stock_count():
 
 
 def _parse_expected(raw, current):
+    if not isinstance(raw, str) or not re.fullmatch(r"(?:[01][0-9]|2[0-3]):?[0-5][0-9]", raw):
+        raise ValidationError("Informe um horário válido, por exemplo, 14:30.")
+    if len(raw) == 4:
+        raw = raw[:2] + ":" + raw[2:]
     try:
         expected = datetime.strptime(raw, "%H:%M").replace(
             year=current.year, month=current.month, day=current.day, tzinfo=TZ,
