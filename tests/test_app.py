@@ -266,3 +266,16 @@ def test_polling_does_not_refresh_cookie(client):
     response = client.get("/admin/estado")
     assert response.status_code == 200
     assert "Set-Cookie" not in response.headers
+
+
+def test_history_readable_movements_and_escaped_search(client):
+    loan_id = s.request_loan('Ana " <script>', '203', 1, '15:00', token=secrets.token_urlsafe(32))
+    s.deliver_loan(loan_id, ['CH-004'], secrets.token_urlsafe(32))
+    login(client)
+    page = client.get('/admin/historico').get_data(as_text=True)
+    assert 'Entrega registrada' in page
+    assert 'CH-004' in page
+    assert '<script>' not in page
+    assert 'id="history-search"' in page
+    assert '<pre>' not in page
+    assert s.get_history()['audit'][0]['detail']  # Original audit data preserved.

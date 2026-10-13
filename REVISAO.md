@@ -46,3 +46,12 @@ Ambiente: Linux / Python 3.12, Flask 3.1.3, python-dotenv 1.2.4, tzdata 2026.5, 
 ## Entrega
 
 O pacote deve conter somente código, exemplos sem segredos, testes e documentação. Não incluir `.env`, `.venv`, `.git`, bancos, backups, caches ou dados dos testes. O SHA-256 e a comparação com o ZIP original acompanham o arquivo final no diretório de entrega.
+
+## Ajustes posteriores: painel, histórico e som
+
+- Painel com ações recolhidas, indicador de pedidos atrasados e prioridade por atraso/prazo.
+- Histórico com busca e filtros nos registros carregados; movimentações legíveis, preservando a auditoria original no banco.
+- Preferência sonora persistida, teste audível de três sinais e indicação de desbloqueio do áudio após navegação.
+- Validação: 103 testes Python e 10 testes JavaScript aprovados. Chromium com banco temporário: agendamento, entrega, devolução parcial/completa, preservação de seleção no polling, busca/filtros, emissão de áudio no teste e no prazo, persistência da preferência e deduplicação dos alertas.
+- Conferência visual do painel em viewport móvel de 390 px; formulário em seis larguras de 320 a 1280 px. Não houve teste em telefone físico nem confirmação auditiva em alto-falante real; a automação verificou a criação dos sinais de áudio no navegador.
+- Nenhuma migração ou alteração de dados existentes é necessária para estes ajustes.
