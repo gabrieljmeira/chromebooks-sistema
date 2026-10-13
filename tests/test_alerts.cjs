@@ -1,0 +1,14 @@
+const test=require('node:test');const assert=require('node:assert/strict');
+const {pendingAlerts}=require('../static/alerts.js');
+const due=Date.parse('2026-10-13T15:00:00-03:00');
+const loan={id:1,expected:'2026-10-13T15:00:00-03:00',remaining:2};
+test('nenhum alerta antes dos cinco minutos',()=>assert.deepEqual(pendingAlerts([loan],due-300001),[]));
+test('alerta aos cinco minutos',()=>assert.equal(pendingAlerts([loan],due-300000)[0].phase,'soon'));
+test('alerta no prazo',()=>assert.equal(pendingAlerts([loan],due)[0].phase,'due'));
+test('atrasado usa somente alerta do prazo',()=>assert.equal(pendingAlerts([loan],due+600000)[0].phase,'due'));
+test('devolução completa não alerta',()=>assert.deepEqual(pendingAlerts([{...loan,remaining:0}],due),[]));
+test('devolução parcial continua alertando',()=>assert.equal(pendingAlerts([{...loan,remaining:1}],due).length,1));
+test('chave estável para deduplicação',()=>assert.equal(pendingAlerts([loan],due)[0].key,pendingAlerts([loan],due+1000)[0].key));
+test('pré-alerta e prazo são distintos',()=>assert.notEqual(pendingAlerts([loan],due-1)[0].key,pendingAlerts([loan],due)[0].key));
+test('horário inválido não alerta',()=>assert.deepEqual(pendingAlerts([{...loan,expected:'bad'}],due),[]));
+test('timezone equivalente mantém comparação correta',()=>assert.equal(pendingAlerts([{...loan,expected:'2026-10-13T18:00:00Z'}],due)[0].phase,'due'));

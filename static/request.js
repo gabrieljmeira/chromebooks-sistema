@@ -1,18 +1,20 @@
-// O teclado numérico não precisa oferecer dois-pontos: o campo os insere.
-const returnTime = document.getElementById('expected_return');
-if (returnTime) {
-  returnTime.addEventListener('input', () => {
-    const original = returnTime.value;
-    const cursor = returnTime.selectionStart ?? original.length;
-    const digitsBeforeCursor = original.slice(0, cursor).replace(/\D/g, '').length;
-    const digits = original.replace(/\D/g, '').slice(0, 4);
-    returnTime.value = digits.length > 2
-      ? `${digits.slice(0, 2)}:${digits.slice(2)}`
-      : digits;
-    const position = Math.min(
-      digitsBeforeCursor + (digitsBeforeCursor > 2 ? 1 : 0),
-      returnTime.value.length,
-    );
-    returnTime.setSelectionRange(position, position);
+for (const field of document.querySelectorAll('input[inputmode="numeric"]')) {
+  field.addEventListener('input', () => {
+    const cursor = field.selectionStart ?? field.value.length;
+    const before = field.value.slice(0, cursor).replace(/\D/g, '').length;
+    const digits = field.value.replace(/\D/g, '').slice(0, 4);
+    field.value = digits.length > 2 ? `${digits.slice(0, 2)}:${digits.slice(2)}` : digits;
+    const position = Math.min(before + (before > 2 ? 1 : 0), field.value.length);
+    field.setSelectionRange(position, position);
   });
 }
+const kind = document.getElementById('kind');
+const start = document.getElementById('start_time');
+function updateKind() {
+  const scheduled = kind.value === 'scheduled';
+  document.getElementById('start-field').hidden = !scheduled;
+  start.disabled = !scheduled;
+  start.required = scheduled;
+}
+kind.addEventListener('change', updateKind);
+updateKind();

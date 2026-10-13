@@ -1,43 +1,62 @@
-"""Controle de empréstimos de Chromebooks — Flask + Vercel."""
-from __future__ import annotations
+"""Flask sem frameworks adicionais; sessão curta, CSRF e ações idempotentes."""
 
+import hashlib
 import hmac
 import os
 import secrets
+import sqlite3
+import time
+from datetime import timedelta
 from functools import wraps
 
 from dotenv import load_dotenv
-from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
-from werkzeug.security import check_password_hash
-
-from services import (
-    ValidationError, get_dashboard, get_history,
-    request_loan, return_loan, stock_count,
+from flask import (
+    Flask,
+    abort,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
 )
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+from werkzeug.security import check_password_hash
+import services
 
 load_dotenv()
-
 app = Flask(__name__)
-secret_key = os.getenv("SECRET_KEY")
-if not secret_key or len(secret_key) < 32 or secret_key.startswith("COLOQUE_AQUI"):
-    raise RuntimeError("Defina SECRET_KEY (mínimo 32 caracteres) no .env ou nas variáveis da Vercel.")
+secret = os.getenv("SECRET_KEY", "")
+if len(secret) < 32 or secret.startswith("COLOQUE_AQUI"):
+    raise RuntimeError("Defina SECRET_KEY aleatória com pelo menos 32 caracteres.")
 app.config.update(
-    SECRET_KEY=secret_key,
+    SECRET_KEY=secret,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=os.getenv("VERCEL") == "1" or os.getenv("COOKIE_SECURE") == "1",
-    MAX_CONTENT_LENGTH=10 * 1024,
+    SESSION_COOKIE_SECURE=bool(os.getenv("VERCEL"))
+    or os.getenv("COOKIE_SECURE") == "1",
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
+    SESSION_REFRESH_EACH_REQUEST=False,
+    MAX_CONTENT_LENGTH=16 * 1024,
 )
+signer = URLSafeTimedSerializer(secret, salt="form-operations-v1")
 
 
-@app.after_request
-def security_headers(response):
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    if request.path.startswith("/admin"):
-        response.headers["Cache-Control"] = "no-store, private"
-    return response
+def password_hash():
+    return os.getenv("ADMIN_PASSWORD_HASH", "").strip()
+
+
+def auth_version():
+    return hashlib.sha256(password_hash().encode()).hexdigest()
+
+
+def authorized():
+    return bool(
+        session.get("admin")
+        and 0 <= time.time() - session.get("authenticated_at", 0) < 8 * 3600
+        and hmac.compare_digest(session.get("auth_version", ""), auth_version())
+    )
 
 
 def csrf_token():
@@ -46,102 +65,236 @@ def csrf_token():
     return session["csrf"]
 
 
-app.jinja_env.globals["csrf_token"] = csrf_token
+def form_token(scope):
+    return signer.dumps(
+        {"scope": scope, "nonce": secrets.token_urlsafe(32), "session": csrf_token()}
+    )
 
 
-def check_csrf():
-    expected = session.get("csrf", "")
-    submitted = request.form.get("csrf", "")
-    if not expected or not hmac.compare_digest(expected.encode("utf-8"), submitted.encode("utf-8")):
-        abort(400, description="Formulário expirado. Atualize a página e tente novamente.")
+def operation(scope):
+    try:
+        data = signer.loads(request.form.get("operation", ""), max_age=8 * 3600)
+    except (BadSignature, SignatureExpired):
+        abort(400, description="Formulário expirado. Atualize a página.")
+    if data.get("scope") != scope or data.get("session") != session.get("csrf"):
+        abort(400, description="Formulário inválido. Atualize a página.")
+    return data["nonce"]
 
 
-def admin_required(func):
-    @wraps(func)
+app.jinja_env.globals.update(csrf_token=csrf_token, form_token=form_token)
+
+
+@app.before_request
+def protect_post():
+    if request.method == "POST":
+        expected = session.get("csrf", "")
+        submitted = request.form.get("csrf", "")
+        if not expected or not hmac.compare_digest(
+            expected.encode(), submitted.encode()
+        ):
+            abort(
+                400,
+                description="Formulário expirado. Atualize a página e tente novamente.",
+            )
+
+
+@app.after_request
+def headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "same-origin"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    )
+    response.headers["Cache-Control"] = "no-store, private"
+    if app.config["SESSION_COOKIE_SECURE"]:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000"
+    return response
+
+
+def admin_required(fn):
+    @wraps(fn)
     def wrapped(*args, **kwargs):
-        if not session.get("admin"):
+        if not authorized():
+            if request.path == "/admin/estado":
+                return jsonify(error="Entre novamente no painel."), 401
             return redirect(url_for("admin_login"))
-        return func(*args, **kwargs)
+        return fn(*args, **kwargs)
+
     return wrapped
+
+
+def limit(scope, count):
+    # Não confia em X-Forwarded-For fornecido pelo cliente. Guarda só HMAC temporário.
+    identity = hmac.new(
+        secret.encode(), (request.remote_addr or "unknown").encode(), hashlib.sha256
+    ).hexdigest()
+    if not services.rate_limit(scope + ":" + identity, count, 600):
+        abort(
+            429,
+            description="Muitas tentativas. Aguarde alguns minutos e tente novamente.",
+        )
 
 
 @app.route("/", methods=["GET", "POST"])
 @app.route("/retirada", methods=["GET", "POST"])
 def retirada():
+    status = 200
     if request.method == "POST":
-        check_csrf()
+        token = operation("request")
+        limit("requests", 30)
         if request.form.get("website"):
-            # Honeypot para bots; não registra dados.
-            return render_template("success.html", request_id=None), 200
+            return render_template("success.html", request_id=None)
         try:
-            request_id = request_loan(
-                request.form.get("name"), request.form.get("room"),
-                request.form.get("quantity"), request.form.get("expected_return"),
+            loan_id = services.request_loan(
+                request.form.get("name"),
+                request.form.get("room"),
+                request.form.get("quantity"),
+                request.form.get("expected_return"),
+                request.form.get("kind"),
+                request.form.get("start_time"),
+                token,
             )
-        except ValidationError as exc:
+            return redirect(url_for("success", request_id=loan_id), 303)
+        except services.ValidationError as exc:
             flash(str(exc), "error")
-        else:
-            return redirect(url_for("success", request_id=request_id))
-    return render_template("request.html", available=stock_count())
+            status = 422
+    return render_template("request.html"), status
 
 
 @app.get("/enviado/<int:request_id>")
 def success(request_id):
-    # Só mostra ID enviado pela URL; não expõe nomes, sala ou outros dados.
     return render_template("success.html", request_id=request_id)
 
 
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
-    if session.get("admin"):
+    if authorized():
         return redirect(url_for("admin_dashboard"))
+    status = 200
     if request.method == "POST":
-        check_csrf()
-        password_hash = os.getenv("ADMIN_PASSWORD_HASH", "").strip()
-        if not password_hash or "$" not in password_hash:
-            flash("Senha da TI ainda não configurada pelo administrador.", "error")
-        elif check_password_hash(password_hash, request.form.get("password", "")):
+        limit("login", 10)
+        valid = False
+        try:
+            stored = password_hash()
+            if (
+                stored.startswith(("scrypt:", "pbkdf2:"))
+                and len(request.form.get("password", "")) <= 1024
+            ):
+                valid = check_password_hash(stored, request.form.get("password", ""))
+        except (ValueError, TypeError):
+            pass
+        if valid:
             session.clear()
+            session.permanent = True
             session["admin"] = True
-            flash("Acesso autorizado.", "success")
-            return redirect(url_for("admin_dashboard"))
-        else:
-            flash("Senha incorreta.", "error")
-    return render_template("login.html")
+            session["authenticated_at"] = time.time()
+            session["auth_version"] = auth_version()
+            return redirect(url_for("admin_dashboard"), 303)
+        flash(
+            "Não foi possível entrar. Confira a senha e a configuração administrativa.",
+            "error",
+        )
+        status = 401
+    return render_template("login.html"), status
 
 
 @app.post("/admin/logout")
 @admin_required
 def admin_logout():
-    check_csrf()
     session.clear()
-    return redirect(url_for("admin_login"))
+    return redirect(url_for("admin_login"), 303)
 
 
 @app.get("/admin")
 @admin_required
 def admin_dashboard():
-    return render_template("dashboard.html", data=get_dashboard())
+    return render_template("dashboard.html", data=services.get_dashboard())
+
+
+@app.get("/admin/estado")
+@admin_required
+def admin_state():
+    data = services.get_dashboard()
+    alerts = [
+        {
+            "id": l["id"],
+            "expected": l["expected_return_at"],
+            "remaining": l["remaining"],
+        }
+        for l in data["active"]
+        if l["remaining"] > 0 and not l["needs_review"]
+    ]
+    return jsonify(
+        html=render_template("_dashboard.html", data=data),
+        loans=alerts,
+        server_time=data["server_time"],
+    )
 
 
 @app.get("/admin/historico")
 @admin_required
 def admin_history():
-    return render_template("history.html", loans=get_history())
+    return render_template("history.html", data=services.get_history())
 
 
-@app.post("/admin/devolver/<int:loan_id>")
+@app.post("/admin/<action>/<int:loan_id>")
 @admin_required
-def admin_return(loan_id):
-    check_csrf()
+def admin_action(action, loan_id):
+    if action not in ("entregar", "devolver", "cancelar", "conferir"):
+        abort(404)
+    token = operation(f"{action}:{loan_id}")
     try:
-        return_loan(loan_id, request.form.get("quantity"))
-        flash("Devolução registrada. Estoque atualizado.", "success")
-    except ValidationError as exc:
+        if action == "entregar":
+            services.deliver_loan(loan_id, request.form.getlist("devices"), token)
+        elif action == "devolver":
+            services.return_loan(loan_id, request.form.getlist("devices"), token)
+        elif action == "cancelar":
+            services.cancel_loan(loan_id, token)
+        else:
+            services.reconcile_loan(
+                loan_id,
+                request.form.getlist("devices"),
+                request.form.get("reason"),
+                token,
+            )
+        flash("Registro salvo.", "success")
+    except services.ValidationError as exc:
         flash(str(exc), "error")
-    return redirect(url_for("admin_dashboard"))
+    return redirect(
+        url_for("admin_history" if action == "conferir" else "admin_dashboard"), 303
+    )
+
+
+@app.errorhandler(400)
+@app.errorhandler(413)
+@app.errorhandler(429)
+def input_error(error):
+    return render_template("error.html", message=error.description), error.code
+
+
+@app.errorhandler(sqlite3.OperationalError)
+def sqlite_error(error):
+    app.logger.error("Falha operacional no banco local: %s", type(error).__name__)
+    return (
+        render_template(
+            "error.html",
+            message="Banco indisponível. Tente novamente ou confira a inicialização.",
+        ),
+        503,
+    )
+
+
+@app.errorhandler(500)
+def server_error(error):
+    return (
+        render_template(
+            "error.html",
+            message="Não foi possível concluir. Contate a TI; não repita a operação sem conferir o painel.",
+        ),
+        500,
+    )
 
 
 if __name__ == "__main__":
-    # Apenas desenvolvimento local. Na Vercel a app é importada diretamente.
     app.run(debug=False)
