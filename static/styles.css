@@ -4,3 +4,15 @@
 
 @media(max-width:380px){.page{padding:0 12px}.panel{padding:16px}}
 [hidden]{display:none!important}.device-picker{display:flex;flex-wrap:wrap;gap:8px;border:1px solid #cbd5e1;margin:12px 0;padding:12px;min-width:0}.device-picker label{display:flex;align-items:center;gap:8px;min-height:44px;padding:6px 10px;border:1px solid #dbe4ee;border-radius:6px}.device-picker input{width:20px;height:20px;accent-color:#2865a7}.toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:18px}.cancel-form{margin-top:12px}.overdue{border:2px solid #ac352d}.panel h3{margin-top:0}.panel p{overflow-wrap:anywhere}textarea{display:block;width:100%;font:inherit;font-size:16px;min-height:90px;margin:10px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.85rem}.notice a{color:inherit;text-decoration:underline}button{min-height:44px}.brand{overflow-wrap:anywhere}.panel,main{min-width:0}.stack input[type=hidden]{display:none}
+
+/* Painel e histórico: ações recolhidas e controles confortáveis ao toque. */
+.loan-action{border-top:1px solid #e3e8ef;margin-top:18px;padding-top:8px}
+.loan-action>summary{cursor:pointer;color:#2058a5;font-weight:600;padding:12px 0;min-height:44px}
+.loan-action[open]>summary{margin-bottom:10px}
+.device-picker label{cursor:pointer}
+.device-picker label:has(input:checked){background:#edf5ff;border-color:#2865a7;color:#174b82}
+.history-filters{background:white;padding:20px;border:1px solid #e0e6ec;border-radius:10px;margin-bottom:16px}
+.history-item h2{overflow-wrap:anywhere}
+:focus-visible{outline:3px solid #87b7ed;outline-offset:3px}
+#sound-status,#sync-status{color:#5d6a7b;font-size:.9rem}
+@media(max-width:700px){.loan-action .primary,.cancel-form button{width:100%}.toolbar{gap:8px}.stat{padding:14px}.history-filters{padding:16px}}

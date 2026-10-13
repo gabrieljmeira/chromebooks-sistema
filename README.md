@@ -140,3 +140,13 @@ Os testes Python usam bancos temporários, desativam `.env` e Turso, e fixam o r
 - `static/request.js`: teclado numérico e alternância do agendamento.
 - `static/alerts.js` / `dashboard.js`: decisão de alertas, som e polling.
 - `templates/`: formulário, painel, seleção de códigos, histórico e erros.
+
+### Painel, histórico e som
+
+O painel mostra a quantidade de pedidos atrasados e prioriza esses empréstimos na lista de uso. Abra “Selecionar aparelhos para entrega” ou “Selecionar aparelhos devolvidos” para registrar a movimentação pelos códigos físicos.
+
+No histórico, a busca por professor, sala ou número e os filtros de situação atuam sobre os últimos 300 pedidos carregados (mais os empréstimos antigos ativos que exigem conferência). Abra um registro para ver aparelhos e movimentações. Os dados completos de auditoria continuam preservados no banco.
+
+Para os alertas sonoros, clique em **Testar som**: devem tocar três sinais curtos, e aparecer “Som ativado”. Esse botão também ativa o áudio. A preferência de ativação é lembrada neste navegador, mas após navegar ou recarregar pode ser necessário clicar novamente para liberar o áudio. Confira o volume do dispositivo e se a aba/site está silenciado. “Silenciar som” desativa os sinais sem desativar os avisos visuais.
+
+Mantenha o painel aberto e o dispositivo acordado. Navegadores podem suspender áudio e consultas em abas em segundo plano ou com a tela bloqueada; não há garantia de alarme nessas condições. A consulta ocorre a cada 15 segundos. Somente empréstimos entregues, conferidos e ainda não devolvidos geram avisos, uma vez por fase (cinco minutos antes e no prazo). Um aviso já exibido não toca retroativamente ao ativar o som; use o botão de teste para conferir o áudio.

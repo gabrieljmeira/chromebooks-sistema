@@ -3,36 +3,59 @@
   const status = document.getElementById('sync-status');
   const alertBox = document.getElementById('alerts');
   const toggle = document.getElementById('sound-toggle');
+  const soundStatus = document.getElementById('sound-status');
   let sound = false, audio = null, dirty = false, stopped = false;
   const memory = new Set();
+  try { sound = localStorage.getItem('chromebooks:sound') === 'on'; } catch {}
+  function showSound() {
+    toggle.textContent = sound ? 'Silenciar som' : 'Ativar som';
+    toggle.setAttribute('aria-pressed', String(sound));
+    soundStatus.textContent = sound
+      ? (audio?.state === 'running' ? 'Som ativado.' : 'Clique em Testar som para liberar o áudio nesta página.')
+      : 'Som desativado.';
+  }
+  async function enableAudio() {
+    const Audio = window.AudioContext || window.webkitAudioContext;
+    audio = audio || new Audio();
+    await audio.resume();
+    if (audio.state !== 'running') throw new Error('audio');
+  }
+  function beep() {
+    if (!sound || !audio || audio.state !== 'running') { showSound(); return; }
+    for (let i = 0; i < 3; i++) {
+      const tone = audio.createOscillator(), gain = audio.createGain();
+      const begin = audio.currentTime + i * 0.3;
+      tone.connect(gain); gain.connect(audio.destination);
+      tone.frequency.value = 740;
+      gain.gain.setValueAtTime(0.001, begin);
+      gain.gain.exponentialRampToValueAtTime(0.2, begin + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, begin + 0.24);
+      tone.start(begin); tone.stop(begin + 0.25);
+      tone.onended = () => { tone.disconnect(); gain.disconnect(); };
+    }
+  }
+  async function activate() {
+    try {
+      await enableAudio(); sound = true;
+      try { localStorage.setItem('chromebooks:sound', 'on'); } catch {}
+      showSound(); beep();
+    } catch {
+      soundStatus.textContent = 'Não foi possível liberar o áudio. Confira o volume e as permissões de som do navegador.';
+    }
+  }
+  toggle.addEventListener('click', () => {
+    if (!sound) { activate(); return; }
+    sound = false;
+    try { localStorage.setItem('chromebooks:sound', 'off'); } catch {}
+    showSound();
+  });
+  document.getElementById('sound-test').addEventListener('click', activate);
+  document.addEventListener('pointerdown', () => {
+    if (sound && audio?.state !== 'running') enableAudio().then(showSound).catch(showSound);
+  });
   content.addEventListener('change', () => { dirty = true; });
   content.addEventListener('input', () => { dirty = true; });
-  toggle.addEventListener('click', async () => {
-    try {
-      if (!sound) {
-        const Audio = window.AudioContext || window.webkitAudioContext;
-        audio = audio || new Audio();
-        await audio.resume();
-        if (audio.state !== 'running') throw new Error('audio');
-      }
-      sound = !sound;
-      toggle.textContent = sound ? 'Silenciar som' : 'Ativar som';
-      toggle.setAttribute('aria-pressed', String(sound));
-    } catch {
-      sound = false;
-      status.textContent = 'Som indisponível neste navegador. Os alertas visuais continuam ativos.';
-    }
-  });
-  function beep() {
-    if (!sound || !audio || audio.state !== 'running') return;
-    const tone = audio.createOscillator(), gain = audio.createGain();
-    tone.connect(gain); gain.connect(audio.destination);
-    tone.frequency.value = 740;
-    gain.gain.setValueAtTime(0.12, audio.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.5);
-    tone.start(); tone.stop(audio.currentTime + 0.5);
-    tone.onended = () => { tone.disconnect(); gain.disconnect(); };
-  }
+  showSound();
   async function claim(key) {
     const storageKey = 'chromebooks:alert:' + key;
     const run = () => {
@@ -61,7 +84,11 @@
       if (!response.ok) throw new Error('fetch');
       const data = await response.json();
       const editing = dirty || content.contains(document.activeElement);
-      if (!editing) content.innerHTML = data.html; // HTML escapado por Jinja, somente endpoint autenticado.
+      if (!editing) {
+        const opened = [...content.querySelectorAll('details[open][id]')].map(d => d.id);
+        content.innerHTML = data.html;
+        for (const id of opened) { const detail = document.getElementById(id); if (detail) detail.open = true; }
+      } // HTML escapado por Jinja, somente endpoint autenticado.
       status.textContent = editing
         ? 'Seleção preservada. Alertas atualizados; envie o formulário ou recarregue para atualizar as listas.'
         : 'Painel atualizado. Nova consulta em 15 segundos.';

@@ -444,6 +444,16 @@ def snapshot(history=False):
             if history
             else []
         )
+        for event in audit:
+            detail = json.loads(event["detail"])
+            event["happened_at_label"] = datetime_label(event["happened_at"])
+            event["action_label"] = {
+                "pedido": "Pedido recebido", "entrega": "Entrega registrada",
+                "devolucao": "Devolução registrada", "cancelamento": "Pedido cancelado",
+                "conferencia_legado": "Registro antigo conferido",
+            }.get(event["action"], event["action"])
+            event["codes"] = detail.get("codes", detail.get("verified_codes", []))
+            event["reason"] = detail.get("reason", "")
         db.commit()
         return {
             "loans": loans,
