@@ -1,10 +1,14 @@
-{% extends 'base.html' %}
-{% block title %}Histórico TI{% endblock %}
-{% block content %}
-<section class="heading"><div><p class="eyebrow">ÁREA DA TI</p><h1>Histórico</h1><p class="muted">Últimos 300 registros, do mais recente ao mais antigo.</p></div><a class="secondary-link" href="{{ url_for('admin_dashboard') }}">← Voltar ao painel</a></section>
-<section class="panel"><div class="table-wrap"><table><thead><tr><th>ID</th><th>Professor</th><th>Sala</th><th>Retirados</th><th>Devolvidos</th><th>Em uso</th><th>Chromebooks</th><th>Retirado</th><th>Previsto</th><th>Devolução completa</th><th>Status</th></tr></thead><tbody>
-{% for loan in loans %}
-<tr><td>#{{ loan.id }}</td><td>{{ loan.professor_name }}</td><td>{{ loan.room }}</td><td>{{ loan.quantity }}</td><td>{{ loan.returned_quantity }}</td><td>{{ loan.remaining_quantity }}</td><td>{{ loan.devices or '—' }}</td><td>{{ loan.taken_label }}</td><td>{{ loan.expected_label }}</td><td>{{ loan.returned_label }}</td><td>{% if loan.overdue %}<span class="pill late">Atrasado</span>{% elif loan.status == 'returned' %}Devolvido{% elif loan.status == 'active' %}Em uso{% elif loan.status == 'cancelled' %}Cancelado{% else %}Pendente (versão anterior){% endif %}</td></tr>
-{% else %}<tr><td colspan="11" class="muted">Nenhum registro ainda.</td></tr>{% endfor %}
-</tbody></table></div></section>
-{% endblock %}
+{% extends 'base.html' %}{% block title %}Histórico da TI{% endblock %}{% block content %}
+<div class="heading"><h1>Histórico e conferência</h1><a href="{{ url_for('admin_dashboard') }}">Voltar ao painel</a></div>
+<p>Últimos 300 pedidos. Os registros completos permanecem no banco.</p>
+{% for loan in data.loans %}
+<article class="panel"><h2>#{{ loan.id }} — {{ loan.professor_name }}</h2><p>Sala {{ loan.room }} · {{ loan.quantity }} solicitados · Situação: {{ {'pending':'Aguardando entrega','active':'Em uso','returned':'Devolvido','cancelled':'Cancelado'}[loan.status] }}</p>
+<p>Início: {{ loan.start_at_label }} · {{ 'Entrega registrada na versão antiga' if loan.legacy else 'Entrega real' }}: {{ loan.confirmed_at_label }} · Previsão: {{ loan.expected_return_at_label }} · Devolução completa: {{ loan.returned_at_label }}</p>
+{% if loan.needs_review %}<p class="notice error">Códigos antigos atribuídos automaticamente; não comprovam entrega física.</p><p>Registro original: {% for d in loan.legacy %}{{ d.code }} {% endfor %}</p>
+<form method="post" action="{{ url_for('admin_action',action='conferir',loan_id=loan.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="operation" value="{{ form_token('conferir:' ~ loan.id) }}">
+<p>{% if loan.status=='active' %}Confira {{ loan.remaining }} aparelhos que ainda estão com o professor. Devoluções antigas por quantidade permanecem sem identificação física comprovada.{% else %}Confira os {{ loan.quantity }} aparelhos do empréstimo encerrado.{% endif %}</p>
+<fieldset class="device-picker"><legend>Códigos conferidos pela TI</legend>{% for i in range(1,21) %}<label><input type="checkbox" name="devices" value="{{ 'CH-%03d'|format(i) }}">{{ 'CH-%03d'|format(i) }}</label>{% endfor %}</fieldset>
+<label for="reason-{{ loan.id }}">Motivo e evidência da conferência</label><textarea id="reason-{{ loan.id }}" name="reason" minlength="10" maxlength="500" required></textarea><button class="primary">Salvar conferência auditada</button></form>
+{% else %}{% if loan.legacy and loan.devices|length < loan.quantity %}<p class="notice error">Parte da devolução ocorreu na versão antiga por quantidade. Somente os códigos listados abaixo foram conferidos; a identificação dos demais aparelhos devolvidos anteriormente permanece desconhecida.</p>{% endif %}<ul>{% for d in loan.devices %}<li>{{ d.code }} — {{ 'Devolvido em ' ~ d.returned_at if d.returned_at else 'Em uso' }}</li>{% endfor %}</ul>{% endif %}
+<details><summary>Auditoria</summary>{% for event in data.audit if event.loan_id==loan.id %}<p>{{ event.happened_at }} · {{ event.action }}</p><pre>{{ event.detail }}</pre>{% else %}<p>Sem eventos auditados anteriores a esta versão.</p>{% endfor %}</details>
+</article>{% else %}<p>Nenhum registro.</p>{% endfor %}{% endblock %}

@@ -1,0 +1,48 @@
+# Revisão do ZIP — 13/10/2026
+
+## Origem e escopo
+
+Fonte: `chromebooks-sistema-main.zip` anexado pelo usuário. Não continha o conjunto relatado de 108 testes Python / 7 JavaScript nem os fluxos completos de entrega pela TI. Continha a versão com entrega imediata no envio, atribuição automática e devolução por quantidade.
+
+O ZIP foi extraído em uma pasta separada; o checkout anterior, o repositório remoto e dados de usuário não foram alterados. Nenhum banco real veio no arquivo. Não houve push nem deploy.
+
+## Principais mudanças
+
+- Pedir agora e agendar hoje criam pedidos pendentes. A TI efetua todas as entregas.
+- Reservas usam a capacidade máxima simultânea no intervalo. Atrasados não são liberados pelo relógio.
+- Seleção obrigatória de códigos exatos na entrega e devolução parcial/total. Cancelamento de pendentes preserva histórico.
+- Transações, índice único de aparelho em uso, tokens assinados e operações persistentes impedem duplicidade e conflitos.
+- Migração aditiva mantém `loan_devices` como original; códigos anteriores precisam de conferência. Bloqueio preventivo para empréstimos legados abertos, justificativa e auditoria de correções.
+- Backup SQLite consistente antes da migração local. Turso exige `--remote`, sem fallback local na Vercel.
+- Sessões com vencimento absoluto de oito horas (inclusive após atualização de cookie), invalidação por mudança de senha, CSRF, cabeçalhos, validações, escaping e limites persistentes de tentativas.
+- Polling com preservação de edição, alertas de cinco minutos/prazo, deduplicação por navegador, controle de som e destaque de atrasos. Sem notificações do sistema operacional.
+- Interface responsiva em cartões e seletores de códigos com alvos de toque; orientação coerente com entrega pela TI.
+
+## Verificações executadas
+
+- **102 testes Python aprovados**, sem falhas ou skips, em SQLite local.
+- **10 testes JavaScript aprovados**, sem falhas ou skips, para decisões de alerta.
+- Navegador Chromium com servidor Flask real e banco temporário: formulário e agendamento, entrega selecionada, devolução parcial/completa, histórico, ausência de seleção automática e formulário público sem JavaScript.
+- Larguras emuladas: 320, 360, 390, 412, 768 e 1280 px. Sem transbordamento horizontal no formulário; painel/histórico também conferidos no tamanho móvel.
+- Polling preservou códigos selecionados. Alertas nas duas fases, sem repetição por polling ou recarga, com relógio de resposta controlado para os cenários de prazo.
+- Ativação e silenciamento do Web Audio por clique no Chromium. Não foi aferido áudio em alto-falante físico.
+- Backup criado pelo script e reaberto com conteúdo original; migrações repetidas, legado sem coluna de devolução e empréstimo antigo fora dos 300 recentes.
+- Concorrência com conexões distintas: pedidos, entrega do mesmo aparelho, devolução repetida, cancelamento versus entrega e reenvio da mesma operação.
+- Rollback após falha intermediária e restrição de unicidade no próprio banco.
+- Dependências: `pip check` sem incompatibilidades no ambiente utilizado.
+
+Ambiente: Linux / Python 3.12, Flask 3.1.3, python-dotenv 1.2.4, tzdata 2026.5, turso_serverless 0.1.0, pytest 9.1.1. Node e Chromium usados apenas na validação.
+
+## Limitações restantes
+
+- **Turso e Vercel não foram testados de verdade:** credenciais remotas ausentes. Validar transações, isolamento, índice parcial e migração em homologação antes de publicar.
+- Windows nativo, Safari/iPhone e Android físicos não estavam disponíveis. A interface foi testada em Chromium com tamanhos de tela emulados.
+- Alertas não funcionam com painel fechado, dispositivo suspenso ou áudio bloqueado. A consulta tem intervalo de 15 segundos. Estado de deduplicação é por navegador; apagar o armazenamento ou usar outro navegador permite novos avisos.
+- Senha administrativa compartilhada não identifica uma pessoa na auditoria. Os limites de tentativas usam o endereço de conexão entregue pela infraestrutura; conferir comportamento do proxy antes de produção.
+- A conferência de legado corrige códigos com justificativa, não inventa saldo ou horário físico. Saldos inconsistentes precisam de revisão assistida. Devoluções antigas por quantidade podem continuar sem código comprovado.
+- Histórico visual limitado aos 300 recentes, mais empréstimos legados ativos não conferidos. Banco e auditoria completos são preservados.
+- Agendamentos são somente para o mesmo dia. Não há notificações externas, e-mail, login de professores, paginação ou exportação.
+
+## Entrega
+
+O pacote deve conter somente código, exemplos sem segredos, testes e documentação. Não incluir `.env`, `.venv`, `.git`, bancos, backups, caches ou dados dos testes. O SHA-256 e a comparação com o ZIP original acompanham o arquivo final no diretório de entrega.

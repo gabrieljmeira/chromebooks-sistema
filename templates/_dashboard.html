@@ -1,0 +1,24 @@
+<div class="stats">
+  <div class="stat"><span>Fisicamente disponíveis</span><strong>{{ data.available }}</strong></div>
+  <div class="stat"><span>Aguardando entrega</span><strong>{{ data.pending|length }}</strong></div>
+  <div class="stat"><span>Empréstimos ativos</span><strong>{{ data.active|length }}</strong></div>
+  <div class="stat"><span>Total</span><strong>20</strong></div>
+</div>
+{% if data.blocked %}<p class="notice error">Há empréstimos antigos com códigos não conferidos. Novos pedidos e entregas estão bloqueados até a conferência pela TI no histórico.</p>{% endif %}
+<section><h2>Aguardando entrega pela TI</h2>
+{% for loan in data.pending %}
+<article class="panel"><h3>#{{ loan.id }} — {{ loan.professor_name }}</h3><p>Sala {{ loan.room }} · {{ loan.quantity }} aparelhos · {{ 'Agendamento' if loan.kind=='scheduled' else 'Pedido imediato' }}</p><p>Início solicitado: {{ loan.start_at_label }} · Devolução prevista: {{ loan.expected_return_at_label }}</p>
+<form method="post" action="{{ url_for('admin_action',action='entregar',loan_id=loan.id) }}">
+<input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="operation" value="{{ form_token('entregar:' ~ loan.id) }}">
+{% with devices=data.free,legend='Selecione os ' ~ loan.quantity ~ ' aparelhos efetivamente entregues' %}{% include '_devices.html' %}{% endwith %}
+<button class="primary" {% if data.blocked %}disabled{% endif %}>Registrar entrega</button></form>
+<form class="cancel-form" method="post" action="{{ url_for('admin_action',action='cancelar',loan_id=loan.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="operation" value="{{ form_token('cancelar:' ~ loan.id) }}"><button class="ghost">Cancelar pedido</button></form>
+</article>{% else %}<p>Nenhum pedido aguardando entrega.</p>{% endfor %}</section>
+<section><h2>Entregues e ainda em uso</h2>
+{% for loan in data.active %}
+<article class="panel {% if loan.overdue %}overdue{% endif %}"><h3>#{{ loan.id }} — {{ loan.professor_name }} {% if loan.overdue %}<span class="pill late">Atrasado</span>{% endif %}</h3>
+<p>Sala {{ loan.room }} · {{ loan.remaining }} de {{ loan.quantity }} ainda em uso</p><p>{{ 'Entrega registrada na versão antiga' if loan.legacy else 'Entrega real' }}: {{ loan.confirmed_at_label }} · Devolução prevista: {{ loan.expected_return_at_label }}</p>
+{% if loan.needs_review %}<p class="notice error">Códigos antigos não conferidos. <a href="{{ url_for('admin_history') }}">Conferir no histórico</a>.</p>
+{% else %}<form method="post" action="{{ url_for('admin_action',action='devolver',loan_id=loan.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="operation" value="{{ form_token('devolver:' ~ loan.id) }}">
+{% with devices=loan.outstanding,legend='Selecione apenas os aparelhos recebidos pela TI' %}{% include '_devices.html' %}{% endwith %}<button class="primary">Registrar devolução</button></form>{% endif %}
+</article>{% else %}<p>Nenhum empréstimo ativo.</p>{% endfor %}</section>
