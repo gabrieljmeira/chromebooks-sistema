@@ -1,2 +1,2 @@
 {% extends 'base.html' %}{% block title %}Pedido enviado{% endblock %}
-{% block content %}<section class="panel narrow center"><h1>Pedido enviado à TI</h1><p>A entrega será realizada pela equipe da TI. O envio deste pedido não registra a entrega.</p>{% if request_id %}<p>Protocolo <strong>#{{ request_id }}</strong></p>{% endif %}<a href="{{ url_for('retirada') }}">Novo pedido</a></section>{% endblock %}
+{% block content %}<section class="panel narrow center"><h1>Pedido enviado à TI</h1><p>A entrega será realizada pela equipe da TI.</p>{% if request_id %}<p>Protocolo <strong>#{{ request_id }}</strong></p>{% endif %}<a href="{{ url_for('retirada') }}">Novo pedido</a></section>{% endblock %}
