@@ -169,8 +169,6 @@ def success(request_id):
 
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
-    if authorized():
-        return redirect(url_for("admin_dashboard"))
     status = 200
     if request.method == "POST":
         limit("login", 10)

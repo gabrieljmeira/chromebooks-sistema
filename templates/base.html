@@ -11,7 +11,9 @@
   <div class="page">
     <header class="site-header">
       <a href="{{ url_for('retirada') }}" class="brand">▣ Controle de Chromebooks</a>
-      {% if session.get('admin') %}
+      {% if request.endpoint in ('retirada', 'success') %}
+      <nav aria-label="Acesso da TI"><a href="{{ url_for('admin_login') }}">Painel</a></nav>
+      {% elif session.get('admin') and request.endpoint != 'admin_login' %}
       <nav aria-label="Painel TI">
         <a href="{{ url_for('admin_dashboard') }}">Painel</a>
         <a href="{{ url_for('admin_history') }}">Histórico</a>
