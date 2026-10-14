@@ -2,57 +2,44 @@
   const content = document.getElementById('dashboard-content');
   const status = document.getElementById('sync-status');
   const alertBox = document.getElementById('alerts');
-  const toggle = document.getElementById('sound-toggle');
   const soundStatus = document.getElementById('sound-status');
-  let sound = false, audio = null, dirty = false, stopped = false;
+  let audio = null, dirty = false, stopped = false, queuedSound = false;
   const memory = new Set();
-  try { sound = localStorage.getItem('chromebooks:sound') === 'on'; } catch {}
   function showSound() {
-    toggle.textContent = sound ? 'Silenciar som' : 'Ativar som';
-    toggle.setAttribute('aria-pressed', String(sound));
-    soundStatus.textContent = sound
-      ? (audio?.state === 'running' ? 'Som ativado.' : 'Clique em Testar som para liberar o áudio nesta página.')
-      : 'Som desativado.';
-  }
-  async function enableAudio() {
-    const Audio = window.AudioContext || window.webkitAudioContext;
-    audio = audio || new Audio();
-    await audio.resume();
-    if (audio.state !== 'running') throw new Error('audio');
+    soundStatus.textContent = audio?.state === 'running'
+      ? 'Som dos avisos ativado.' : 'Clique no painel para liberar o som dos avisos.';
   }
   function beep() {
-    if (!sound || !audio || audio.state !== 'running') { showSound(); return; }
-    for (let i = 0; i < 3; i++) {
+    if (!audio || audio.state !== 'running') { queuedSound = true; showSound(); return; }
+    queuedSound = false;
+    // Toque original em duas frases ascendentes, com ataque suave e cauda de sino.
+    for (const [offset, frequency] of [[0, 880], [0.16, 1174.66], [0.34, 1567.98],
+                                      [0.95, 880], [1.11, 1174.66], [1.29, 1567.98]]) {
       const tone = audio.createOscillator(), gain = audio.createGain();
-      const begin = audio.currentTime + i * 0.3;
+      const begin = audio.currentTime + offset;
+      tone.type = 'sine'; tone.frequency.value = frequency;
       tone.connect(gain); gain.connect(audio.destination);
-      tone.frequency.value = 740;
       gain.gain.setValueAtTime(0.001, begin);
-      gain.gain.exponentialRampToValueAtTime(0.2, begin + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, begin + 0.24);
-      tone.start(begin); tone.stop(begin + 0.25);
+      gain.gain.exponentialRampToValueAtTime(0.26, begin + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.001, begin + 0.55);
+      tone.start(begin); tone.stop(begin + 0.56);
       tone.onended = () => { tone.disconnect(); gain.disconnect(); };
     }
   }
-  async function activate() {
+  async function unlockAudio() {
+    if (stopped || audio?.state === 'running') return;
     try {
-      await enableAudio(); sound = true;
-      try { localStorage.setItem('chromebooks:sound', 'on'); } catch {}
-      showSound(); beep();
+      const Audio = window.AudioContext || window.webkitAudioContext;
+      if (!audio) { audio = new Audio(); audio.onstatechange = showSound; }
+      await audio.resume();
+      showSound();
+      if (queuedSound && audio.state === 'running') beep();
     } catch {
-      soundStatus.textContent = 'Não foi possível liberar o áudio. Confira o volume e as permissões de som do navegador.';
+      soundStatus.textContent = 'Áudio bloqueado. Confira as permissões de som do navegador.';
     }
   }
-  toggle.addEventListener('click', () => {
-    if (!sound) { activate(); return; }
-    sound = false;
-    try { localStorage.setItem('chromebooks:sound', 'off'); } catch {}
-    showSound();
-  });
-  document.getElementById('sound-test').addEventListener('click', activate);
-  document.addEventListener('pointerdown', () => {
-    if (sound && audio?.state !== 'running') enableAudio().then(showSound).catch(showSound);
-  });
+  document.addEventListener('click', unlockAudio);
+  document.addEventListener('keydown', unlockAudio);
   content.addEventListener('change', () => { dirty = true; });
   content.addEventListener('input', () => { dirty = true; });
   showSound();
@@ -76,7 +63,7 @@
     try {
       const response = await fetch('/admin/estado', { cache: 'no-store', credentials: 'same-origin' });
       if (response.status === 401) {
-        stopped = true; content.replaceChildren(); alertBox.replaceChildren();
+        stopped = true; queuedSound = false; if (audio) audio.close(); content.replaceChildren(); alertBox.replaceChildren();
         status.textContent = 'Sessão encerrada. Entre novamente no painel.';
         const link = document.createElement('a'); link.href = '/admin/login'; link.textContent = 'Entrar';
         status.append(' ', link); return;
@@ -92,16 +79,24 @@
       status.textContent = editing
         ? 'Seleção preservada. Alertas atualizados; envie o formulário ou recarregue para atualizar as listas.'
         : 'Painel atualizado. Nova consulta em 15 segundos.';
-      for (const event of LoanAlerts.pendingAlerts(data.loans, Date.parse(data.server_time))) {
+      let shouldRing = false;
+      const events = [
+        ...(data.pending || []).map(loan => ({ key: `new:${loan.id}`, id: loan.id, phase: 'new' })),
+        ...LoanAlerts.pendingAlerts(data.loans, Date.parse(data.server_time)),
+      ];
+      for (const event of events) {
         if (!(await claim(event.key))) continue;
         const message = document.createElement('p'); message.className = 'notice error';
-        message.textContent = event.phase === 'soon'
+        message.textContent = event.phase === 'new'
+          ? `Novo pedido #${event.id}: aguardando entrega pela TI.`
+          : event.phase === 'soon'
           ? `Pedido #${event.id}: devolução prevista em até 5 minutos.`
           : `Pedido #${event.id}: chegou o horário de devolução.`;
         alertBox.prepend(message);
         while (alertBox.children.length > 10) alertBox.lastElementChild.remove();
-        beep();
+        shouldRing = true;
       }
+      if (shouldRing) beep();
     } catch {
       status.textContent = 'Sem atualização: confira a conexão. Os dados exibidos podem estar desatualizados.';
     } finally {

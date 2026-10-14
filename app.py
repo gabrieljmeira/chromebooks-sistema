@@ -229,6 +229,7 @@ def admin_state():
         html=render_template("_dashboard.html", data=data),
         loans=alerts,
         server_time=data["server_time"],
+        pending=[{"id": loan["id"]} for loan in data["pending"]],
     )
 
 

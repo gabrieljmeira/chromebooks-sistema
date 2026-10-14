@@ -279,3 +279,15 @@ def test_history_readable_movements_and_escaped_search(client):
     assert 'id="history-search"' in page
     assert '<pre>' not in page
     assert s.get_history()['audit'][0]['detail']  # Original audit data preserved.
+
+
+def test_pending_requests_in_dashboard_alert_feed(client):
+    loan_id = s.request_loan('Ana', '203', 1, '15:00', token=secrets.token_urlsafe(32))
+    login(client)
+    data = client.get('/admin/estado').get_json()
+    assert data['pending'] == [{'id': loan_id}]
+    assert data['loans'] == []
+    s.deliver_loan(loan_id, ['CH-004'], secrets.token_urlsafe(32))
+    data = client.get('/admin/estado').get_json()
+    assert data['pending'] == []
+    assert data['loans'][0]['id'] == loan_id

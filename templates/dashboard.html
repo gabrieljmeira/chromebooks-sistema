@@ -1,7 +1,7 @@
 {% extends 'base.html' %}{% block title %}Painel da TI{% endblock %}
 {% block content %}
 <div class="heading"><h1>Painel da TI</h1><a href="{{ url_for('admin_history') }}">Ver histórico</a></div>
-<div class="toolbar"><button id="sound-toggle" class="ghost" aria-pressed="false">Ativar som</button><button id="sound-test" class="ghost" type="button">Testar som</button><span id="sound-status" role="status">Som desativado.</span></div><div class="toolbar"><span id="sync-status" role="status">Atualização automática a cada 15 segundos.</span></div>
+<div class="toolbar"><span id="sound-status" role="status">Clique no painel para liberar o som dos avisos.</span><span id="sync-status" role="status">Atualização automática a cada 15 segundos.</span></div>
 <div id="alerts" aria-live="polite"></div>
 <div id="dashboard-content">{% include '_dashboard.html' %}</div>
 <script src="{{ url_for('static',filename='alerts.js') }}" defer></script>

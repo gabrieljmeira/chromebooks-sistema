@@ -128,7 +128,7 @@ Somente depois de validar o endereço definitivo crie o QR Code para `https://SE
 Testes de alertas (Node.js 20+ apenas para desenvolvimento):
 
 ```powershell
-node --test tests/test_alerts.cjs
+node --test tests/test_alerts.cjs tests/test_dashboard.cjs
 ```
 
 Os testes Python usam bancos temporários, desativam `.env` e Turso, e fixam o relógio em São Paulo. Consulte `REVISAO.md` para os resultados efetivamente executados e limitações.
@@ -147,6 +147,8 @@ O painel mostra a quantidade de pedidos atrasados e prioriza esses empréstimos 
 
 No histórico, a busca por professor, sala ou número e os filtros de situação atuam sobre os últimos 300 pedidos carregados (mais os empréstimos antigos ativos que exigem conferência). Abra um registro para ver aparelhos e movimentações. Os dados completos de auditoria continuam preservados no banco.
 
-Para os alertas sonoros, clique em **Testar som**: devem tocar três sinais curtos, e aparecer “Som ativado”. Esse botão também ativa o áudio. A preferência de ativação é lembrada neste navegador, mas após navegar ou recarregar pode ser necessário clicar novamente para liberar o áudio. Confira o volume do dispositivo e se a aba/site está silenciado. “Silenciar som” desativa os sinais sem desativar os avisos visuais.
+Os avisos usam um toque de duas frases, semelhante a uma notificação de celular. Não há botões de teste ou silenciamento. Clique em qualquer área do painel (ou use o teclado) para liberar o áudio quando o navegador exigir; o indicador informa se o som está ativado. Após navegar ou recarregar, pode ser necessária outra interação. Confira também o volume e se o site está silenciado no navegador.
 
-Mantenha o painel aberto e o dispositivo acordado. Navegadores podem suspender áudio e consultas em abas em segundo plano ou com a tela bloqueada; não há garantia de alarme nessas condições. A consulta ocorre a cada 15 segundos. Somente empréstimos entregues, conferidos e ainda não devolvidos geram avisos, uma vez por fase (cinco minutos antes e no prazo). Um aviso já exibido não toca retroativamente ao ativar o som; use o botão de teste para conferir o áudio.
+Um pedido pendente ainda não avisado neste navegador gera um aviso visual e sonoro, inclusive ao abrir o painel. Empréstimos entregues, conferidos e com aparelhos ainda em uso geram avisos cinco minutos antes e no prazo de devolução. Cada evento é lembrado neste navegador para não repetir a cada consulta. Vários eventos na mesma consulta produzem um único toque. Se o áudio estiver bloqueado, um toque fica aguardando a interação no painel.
+
+Mantenha o painel aberto e o dispositivo acordado. Navegadores podem suspender áudio e consultas em abas em segundo plano ou com a tela bloqueada; não há garantia de alarme nessas condições. A consulta ocorre a cada 15 segundos, portanto um pedido novo ou prazo pode levar até a próxima consulta para gerar o aviso, além do tempo de rede.

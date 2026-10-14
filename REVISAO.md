@@ -55,3 +55,9 @@ O pacote deve conter somente código, exemplos sem segredos, testes e documenta�
 - Validação: 103 testes Python e 10 testes JavaScript aprovados. Chromium com banco temporário: agendamento, entrega, devolução parcial/completa, preservação de seleção no polling, busca/filtros, emissão de áudio no teste e no prazo, persistência da preferência e deduplicação dos alertas.
 - Conferência visual do painel em viewport móvel de 390 px; formulário em seis larguras de 320 a 1280 px. Não houve teste em telefone físico nem confirmação auditiva em alto-falante real; a automação verificou a criação dos sinais de áudio no navegador.
 - Nenhuma migração ou alteração de dados existentes é necessária para estes ajustes.
+
+### Aviso de novos pedidos e toque de notificação
+
+Removidos os controles Testar som/Ativar/Silenciar. O áudio é liberado por clique ou teclado no painel e usa um toque original em duas frases. Pedidos pendentes ainda não avisados geram notificação; preservados os alertas de cinco minutos e do prazo, com deduplicação por navegador. Consulta a cada 15 segundos. Nenhuma alteração no banco.
+
+Validação: 104 testes Python e 12 JavaScript aprovados. Os testes novos verificam o feed autenticado de pedidos pendentes e, com Web Audio/DOM simulados, desbloqueio por interação, emissão dos toques, agrupamento e ausência de repetição. Não confirmam volume percebido em celular ou alto-falante físico.
