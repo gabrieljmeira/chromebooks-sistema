@@ -52,7 +52,7 @@ def test_legacy_blocks_until_review_and_keeps_original(legacy):
     assert s.get_dashboard()["blocked"]
     assert s.stock_count() == 0
     with pytest.raises(s.ValidationError):
-        s.request_loan("Prof. Nova", "1", 1, "15:00", token=secrets.token_urlsafe(32))
+        s.request_loan("Prof. Nova", "101", 1, "15:00", token=secrets.token_urlsafe(32))
     with pytest.raises(s.ValidationError):
         s.return_loan(1, ["CH-001"], secrets.token_urlsafe(32))
     key = secrets.token_urlsafe(32)

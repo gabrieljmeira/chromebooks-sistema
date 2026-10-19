@@ -6,7 +6,7 @@ import os
 import secrets
 import sqlite3
 import time
-from datetime import timedelta
+from datetime import date, timedelta
 from functools import wraps
 
 from dotenv import load_dotenv
@@ -24,6 +24,7 @@ from flask import (
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash
 import services
+from rooms import ROOMS
 
 load_dotenv()
 app = Flask(__name__)
@@ -81,7 +82,7 @@ def operation(scope):
     return data["nonce"]
 
 
-app.jinja_env.globals.update(csrf_token=csrf_token, form_token=form_token)
+app.jinja_env.globals.update(csrf_token=csrf_token, form_token=form_token, rooms=ROOMS)
 
 
 @app.before_request
@@ -162,6 +163,18 @@ def retirada():
     return render_template("request.html"), status
 
 
+@app.get("/salas/disponibilidade")
+def room_availability():
+    # Consulta pública retorna apenas salas ocupadas, sem nomes ou códigos de pedidos.
+    try:
+        return jsonify(services.room_availability(
+            request.args.get("kind", "now"), request.args.get("start_time"),
+            request.args.get("expected_return"),
+        ))
+    except services.ValidationError as exc:
+        return jsonify(error=str(exc)), 422
+
+
 @app.get("/enviado/<int:request_id>")
 def success(request_id):
     return render_template("success.html", request_id=request_id)
@@ -234,7 +247,25 @@ def admin_state():
 @app.get("/admin/historico")
 @admin_required
 def admin_history():
-    return render_template("history.html", data=services.get_history())
+    filters = {key: request.args.get(key, "").strip() for key in ("search", "room", "date", "status")}
+    filters["search"] = filters["search"][:100]
+    filters["room"] = filters["room"][:40]  # Permite consultar também salas antigas.
+    if filters["status"] not in ("", "pending", "active", "returned", "cancelled", "overdue", "review"):
+        filters["status"] = ""
+    if filters["date"]:
+        try:
+            filters["date"] = date.fromisoformat(filters["date"]).isoformat()
+        except ValueError:
+            filters["date"] = ""
+    try:
+        filters["page"] = max(1, min(int(request.args.get("page", "1")), 1000000))
+    except ValueError:
+        filters["page"] = 1
+    data = services.get_history(filters)
+    link_args = {key: value for key, value in filters.items() if key != "page" and value}
+    return render_template("history.html", data=data, filters=filters,
+                           previous_url=url_for("admin_history", **link_args, page=data["page"] - 1),
+                           next_url=url_for("admin_history", **link_args, page=data["page"] + 1))
 
 
 @app.post("/admin/<action>/<int:loan_id>")

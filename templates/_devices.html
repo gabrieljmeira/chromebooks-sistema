@@ -1,3 +1,4 @@
 <fieldset class="device-picker"><legend>{{ legend }}</legend>
 {% for device in devices %}<label><input type="checkbox" name="devices" value="{{ device.code }}">{{ device.code }}</label>{% else %}<p>Nenhum aparelho disponível nesta lista.</p>{% endfor %}
 </fieldset>
+<p class="selection-count hint" role="status">Nenhum aparelho selecionado.</p>

@@ -236,7 +236,7 @@ def test_client_quantity_does_not_bypass_interval_validation(client):
 
 
 def test_api_only_delivered_outstanding_loans(client):
-    a = s.request_loan("Prof. Ana", "1", 2, "15:00", token=secrets.token_urlsafe(32))
+    a = s.request_loan("Prof. Ana", "101", 2, "15:00", token=secrets.token_urlsafe(32))
     login(client)
     assert client.get("/admin/estado").json["loans"] == []
     s.deliver_loan(a, ["CH-001", "CH-002"], secrets.token_urlsafe(32))

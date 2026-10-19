@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Pular para o conteúdo</a>
   <div class="page">
     <header class="site-header">
       <a href="{{ url_for('retirada') }}" class="brand">▣ Controle de Chromebooks</a>
@@ -15,8 +16,8 @@
       <nav aria-label="Acesso da TI"><a href="{{ url_for('admin_login') }}">Painel</a></nav>
       {% elif session.get('admin') and request.endpoint != 'admin_login' %}
       <nav aria-label="Painel TI">
-        <a href="{{ url_for('admin_dashboard') }}">Painel</a>
-        <a href="{{ url_for('admin_history') }}">Histórico</a>
+        <a href="{{ url_for('admin_dashboard') }}" {% if request.endpoint == 'admin_dashboard' %}aria-current="page"{% endif %}>Painel</a>
+        <a href="{{ url_for('admin_history') }}" {% if request.endpoint == 'admin_history' %}aria-current="page"{% endif %}>Histórico</a>
         <form action="{{ url_for('admin_logout') }}" method="post" class="inline-form">
           <input type="hidden" name="csrf" value="{{ csrf_token() }}">
           <button class="nav-button" type="submit">Sair</button>
@@ -24,7 +25,7 @@
       </nav>
       {% endif %}
     </header>
-    <main>
+    <main id="main-content">
       {% with messages = get_flashed_messages(with_categories=true) %}
       {% for category, message in messages %}
         <p class="notice {{ category }}" role="status">{{ message }}</p>

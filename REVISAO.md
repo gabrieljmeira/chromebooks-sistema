@@ -1,3 +1,36 @@
+# Atualização — salas e painel da TI — 19/10/2026
+
+Base inspecionada: branch `main`, commit `7dc4ea865f35439daab17d958c7208453d864e11`. Os fluxos anteriores de pedido imediato/agendado, entrega pela TI, códigos físicos, devolução parcial, auditoria, segurança e alertas já estavam presentes. As notas abaixo correspondem à atualização atual; as seções posteriores são o histórico de revisões anteriores.
+
+## Mudanças verificadas
+
+- Catálogo único com as 25 salas informadas, corrigindo **2010 para 210 na lista**. Nenhum dado histórico é renomeado automaticamente.
+- Consulta pública de ocupação por intervalo, exibindo **SALA EM USO**, sem dados pessoais. Revalidação no servidor e na transação tanto ao pedir quanto ao entregar.
+- Limites `[início,fim)`, sobreposições parciais, cancelamento, devolução parcial/completa, antecipação e atraso cobertos. A sala fica bloqueada mesmo quando sobra capacidade de aparelhos.
+- Início solicitado deixa de ser sobrescrito pela entrega real. Valores anteriores são preservados; não se inventam horários antigos.
+- Cartões da TI com sala, prazos e situação em destaque; aparelhos ainda em uso visíveis, contador da seleção, validação do grupo de códigos e preservação da edição no polling.
+- Histórico com filtros por professor/número, sala, data e situação, aplicados no banco antes da paginação de 50 registros. Remove o limite visual de 300 e o script redundante de filtragem local.
+- Controle de ativação/silenciamento com preferência persistida; mantidos toque, alertas de novo pedido, cinco minutos e prazo, além da deduplicação por navegador.
+- Navegação por teclado, estados vazios e ajustes responsivos em formulário, painel, seleção e histórico.
+
+## Evidências desta versão
+
+- **131 testes Python aprovados** em SQLite temporário: regras anteriores, catálogo, concorrência na mesma sala, limites dos intervalos, liberação, atraso, validação sem JavaScript e histórico com mais de 300 registros.
+- **14 testes JavaScript aprovados**: decisões de alerta, deduplicação, desbloqueio, agrupamento, silenciamento e ativação pelo teclado.
+- **Chromium 153 / Playwright com servidor Flask real e SQLite temporário:** pedido imediato e agendado na mesma sala em intervalos adjacentes; bloqueio visual por sobreposição; entrega CH-004/CH-015; devolução parcial mantém a sala ocupada, total libera; seleção preservada durante polling; pré-alerta; preferência sonora; filtros e formulário sem JavaScript.
+- Layout sem transbordamento horizontal no painel em **320, 360, 390, 412, 768 e 1280 px**, formulário em 320/390/768/1280 e histórico em 390 px. Capturas de painel, histórico e formulário inspecionadas. Não houve aferição de áudio em alto-falantes nem teste em dispositivos físicos.
+- O teste de navegador é reproduzível em `tests/browser/smoke.cjs`, com servidor e banco exclusivos de teste.
+
+## Atualização e limites
+
+Esta mudança não altera o esquema do banco nem migra registros existentes. Sobre a revisão de 14/10, basta atualizar o código; a inicialização/migração segue necessária para bancos anteriores àquela revisão. Novos arquivos `rooms.py` e `static/devices.js` devem acompanhar a atualização.
+
+Pedidos antigos que já se sobrepõem não são apagados. A nova validação pode bloquear sua entrega: a TI deve cancelar o pedido pendente incorreto após conferir. Salas antigas continuam no histórico. O início solicitado de entregas anteriores pode ter sido sobrescrito pela versão antiga; esta atualização não reconstrói esses valores.
+
+As verificações desta revisão são locais. Não executamos mutações ou testes em Turso/Vercel reais. Atualizações da branch conectada podem iniciar um deploy automático; o teste local não prova sucesso desse deploy. Persistem as limitações de áudio com navegador fechado/suspenso, senha compartilhada e pedidos para o mesmo dia.
+
+---
+
 # Revisão do ZIP — 13/10/2026
 
 ## Origem e escopo
