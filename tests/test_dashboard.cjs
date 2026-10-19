@@ -5,8 +5,8 @@ const fs = require('node:fs');
 const { pendingAlerts } = require('../static/alerts.js');
 function setup() {
   const nodes = {};
-  for (const id of ['dashboard-content','sync-status','alerts','sound-status']) nodes[id] = {
-    textContent: '', children: [], addEventListener() {}, contains() { return false; },
+  for (const id of ['dashboard-content','sync-status','alerts','sound-status','sound-toggle']) nodes[id] = {
+    textContent: '', children: [], addEventListener(type,fn) { this[type]=fn; }, setAttribute() {}, contains() { return false; },
     querySelectorAll() { return []; }, prepend(item) { this.children.unshift(item); },
     replaceChildren() { this.children = []; }, append() {},
   };
@@ -16,6 +16,8 @@ function setup() {
   class AudioContext {
     constructor() { this.state='suspended'; this.currentTime=0; }
     async resume() { this.state='running'; }
+    async suspend() { this.state='suspended'; }
+    async close() { this.state='closed'; }
     createOscillator() { tones++; return {frequency:{},connect(){},start(){},stop(){},disconnect(){}}; }
     createGain() { return {gain:{setValueAtTime(){},exponentialRampToValueAtTime(){}},connect(){},disconnect(){}}; }
   }
@@ -26,7 +28,7 @@ function setup() {
     setTimeout:fn=>timer=fn,LoanAlerts:{pendingAlerts}};
   vm.runInNewContext(fs.readFileSync('static/dashboard.js','utf8'),context);
   const settle=()=>new Promise(resolve=>setImmediate(resolve));
-  return {nodes,listeners,settle,get tones(){return tones;}, async refresh(next){data=next;await timer();},get data(){return data;}};
+  return {nodes,listeners,settle,saved,get tones(){return tones;}, async refresh(next){data=next;await timer();},get data(){return data;}};
 }
 test('novo pedido aguarda interação, toca e não se repete; prazo e pré-alerta tocam',async()=>{
   const app=setup();await app.settle();
@@ -43,7 +45,26 @@ test('novo pedido aguarda interação, toca e não se repete; prazo e pré-alert
   await app.refresh(app.data);assert.equal(app.tones,24);
 });
 test('interação sem aviso não toca; teclado também libera som',async()=>{
-  const app=setup();await app.settle();await app.listeners.keydown();assert.equal(app.tones,0);
+  const app=setup();await app.settle();await app.listeners.keydown({target:null});assert.equal(app.tones,0);
   await app.refresh({...app.data,pending:[{id:3},{id:4}]});assert.equal(app.tones,6);
   assert.equal(app.nodes.alerts.children.length,2);
+});
+
+test('silenciar persiste preferência e não toca avisos pendentes ao reativar', async()=>{
+  const app=setup();await app.settle();await app.listeners.click();
+  await app.nodes['sound-toggle'].click({stopPropagation(){}});
+  assert.equal(app.saved.get('chromebooks:sound-muted'),'1');
+  assert.match(app.nodes['sound-status'].textContent,/silenciado/);
+  await app.refresh({...app.data,pending:[{id:8}]});assert.equal(app.tones,0);
+  await app.nodes['sound-toggle'].click({stopPropagation(){}});
+  assert.equal(app.saved.get('chromebooks:sound-muted'),'0');
+  await app.refresh(app.data);assert.equal(app.tones,0);
+  await app.refresh({...app.data,pending:[{id:8},{id:9}]});assert.equal(app.tones,6);
+});
+test('teclado no botão de som não alterna duas vezes', async()=>{
+  const app=setup();await app.settle();
+  await app.listeners.keydown({target:app.nodes['sound-toggle']});
+  await app.nodes['sound-toggle'].click({stopPropagation(){}});
+  assert.match(app.nodes['sound-status'].textContent,/ativado/);
+  await app.refresh({...app.data,pending:[{id:10}]});assert.equal(app.tones,6);
 });

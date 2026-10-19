@@ -3,13 +3,21 @@
   const status = document.getElementById('sync-status');
   const alertBox = document.getElementById('alerts');
   const soundStatus = document.getElementById('sound-status');
+  const soundToggle = document.getElementById('sound-toggle');
   let audio = null, dirty = false, stopped = false, queuedSound = false;
+  let muted = false;
+  try { muted = localStorage.getItem('chromebooks:sound-muted') === '1'; } catch {}
   const memory = new Set();
   function showSound() {
-    soundStatus.textContent = audio?.state === 'running'
+    soundStatus.textContent = muted ? 'Som silenciado. Os avisos visuais continuam ativos.' : audio?.state === 'running'
       ? 'Som dos avisos ativado.' : 'Clique no painel para liberar o som dos avisos.';
+    if (soundToggle) {
+      soundToggle.textContent = muted || audio?.state !== 'running' ? 'Ativar som' : 'Silenciar som';
+      soundToggle.setAttribute('aria-pressed', String(!muted && audio?.state === 'running'));
+    }
   }
   function beep() {
+    if (muted || stopped) { queuedSound = false; return; }
     if (!audio || audio.state !== 'running') { queuedSound = true; showSound(); return; }
     queuedSound = false;
     // Toque original em duas frases ascendentes, com ataque suave e cauda de sino.
@@ -27,11 +35,12 @@
     }
   }
   async function unlockAudio() {
-    if (stopped || audio?.state === 'running') return;
+    if (stopped || muted || audio?.state === 'running') return;
     try {
       const Audio = window.AudioContext || window.webkitAudioContext;
       if (!audio) { audio = new Audio(); audio.onstatechange = showSound; }
       await audio.resume();
+      if (muted || stopped) return;
       showSound();
       if (queuedSound && audio.state === 'running') beep();
     } catch {
@@ -39,7 +48,17 @@
     }
   }
   document.addEventListener('click', unlockAudio);
-  document.addEventListener('keydown', unlockAudio);
+  document.addEventListener('keydown', event => {
+    if (event.target !== soundToggle) unlockAudio();
+  });
+  soundToggle?.addEventListener('click', async event => {
+    event.stopPropagation();
+    muted = !muted && audio?.state === 'running';
+    if (muted) { queuedSound = false; await audio.suspend(); }
+    try { localStorage.setItem('chromebooks:sound-muted', muted ? '1' : '0'); } catch {}
+    if (!muted) await unlockAudio();
+    showSound();
+  });
   content.addEventListener('change', () => { dirty = true; });
   content.addEventListener('input', () => { dirty = true; });
   showSound();
@@ -74,6 +93,7 @@
       if (!editing) {
         const opened = [...content.querySelectorAll('details[open][id]')].map(d => d.id);
         content.innerHTML = data.html;
+        window.DevicePicker?.initialize(content);
         for (const id of opened) { const detail = document.getElementById(id); if (detail) detail.open = true; }
       } // HTML escapado por Jinja, somente endpoint autenticado.
       status.textContent = editing

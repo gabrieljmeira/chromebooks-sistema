@@ -11,8 +11,8 @@ def token():
     return secrets.token_urlsafe(32)
 
 
-def ask(q=2, end="15:00", kind="now", start=None, key=None, name="Prof. Ana"):
-    return s.request_loan(name, "203", str(q), end, kind, start, key or token())
+def ask(q=2, end="15:00", kind="now", start=None, key=None, name="Prof. Ana", room="203"):
+    return s.request_loan(name, room, str(q), end, kind, start, key or token())
 
 
 def devices(*numbers):
@@ -114,24 +114,24 @@ def test_numeric_time_and_injection_safe():
 def test_interval_boundaries(start, end, allowed):
     ask(15, "12:00", "scheduled", "11:00")
     if allowed:
-        ask(6, end, "scheduled", start)
+        ask(6, end, "scheduled", start, room="101")
     else:
         with pytest.raises(s.ValidationError, match="intervalo"):
-            ask(6, end, "scheduled", start)
+            ask(6, end, "scheduled", start, room="101")
 
 
 def test_nonoverlapping_reservations_use_peak_not_sum():
     ask(12, "12:00", "scheduled", "11:00")
     ask(12, "14:00", "scheduled", "13:00")
-    ask(8, "14:00", "scheduled", "10:30")
+    ask(8, "14:00", "scheduled", "10:30", room="101")
     with pytest.raises(s.ValidationError):
-        ask(1, "13:30", "scheduled", "11:30")
+        ask(1, "13:30", "scheduled", "11:30", room="103")
 
 
 def test_immediate_reserves_capacity_until_cancelled():
     first = ask(20)
     with pytest.raises(s.ValidationError):
-        ask(1)
+        ask(1, room="101")
     assert s.stock_count() == 20
     s.cancel_loan(first, token())
     ask(20)
@@ -144,17 +144,17 @@ def test_overdue_remains_unavailable_even_for_future_booking(monkeypatch):
     moment = s.now() + timedelta(hours=2)
     monkeypatch.setattr(s, "now", lambda: moment)
     with pytest.raises(s.ValidationError):
-        ask(1, "16:00", "scheduled", "15:00")
+        ask(1, "16:00", "scheduled", "15:00", room="101")
     assert s.stock_count() == 0
     assert s.get_dashboard()["active"][0]["overdue"]
     s.return_loan(loan, devices(1), token())
-    ask(1, "16:00", "scheduled", "15:00")
+    ask(1, "16:00", "scheduled", "15:00", room="101")
 
 
 def test_future_reservation_does_not_assume_physical_return(monkeypatch):
     first = ask(20, "11:00")
     s.deliver_loan(first, devices(*range(1, 21)), token())
-    second = ask(2, "12:00", "scheduled", "11:00")
+    second = ask(2, "12:00", "scheduled", "11:00", room="101")
     moment = s.now() + timedelta(hours=1)
     monkeypatch.setattr(s, "now", lambda: moment)
     with pytest.raises(s.ValidationError):
@@ -207,7 +207,7 @@ def test_returns_require_exact_outstanding_codes():
 
 def test_unavailable_device_rejected():
     a = ask()
-    b = ask()
+    b = ask(room="101")
     s.deliver_loan(a, devices(1, 2), token())
     with pytest.raises(s.ValidationError):
         s.deliver_loan(b, devices(2, 3), token())
@@ -282,7 +282,7 @@ def concurrent(function, args):
 
 
 def test_concurrent_reservations():
-    assert concurrent(lambda _: ask(12), range(2)) == [False, True]
+    assert concurrent(lambda room: ask(12, room=room), ["101", "103"]) == [False, True]
     assert len(history()) == 1
 
 
@@ -294,7 +294,7 @@ def test_concurrent_same_request():
 
 def test_concurrent_delivery_same_device():
     a = ask(1)
-    b = ask(1)
+    b = ask(1, room="101")
     assert concurrent(
         lambda loan: s.deliver_loan(loan, devices(7), token()), [a, b]
     ) == [False, True]
@@ -326,7 +326,7 @@ def test_delivery_rolls_back_after_partial_failure():
 
 def test_database_rejects_duplicate_outstanding_device():
     a = ask(1)
-    b = ask(1)
+    b = ask(1, room="101")
     s.deliver_loan(a, devices(1), token())
     db = connect()
     try:

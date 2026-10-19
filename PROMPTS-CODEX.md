@@ -14,3 +14,9 @@ Os prompts antigos descreviam atribuição automática e foram substituídos pel
 10. Não publicar, fazer push, deploy, alterar bancos reais ou expor dados sem pedido do usuário. Testes remotos devem usar homologação autorizada.
 11. Preservar `.env`, bancos e backups. Migrações devem ser repetíveis e sem exclusão de histórico. Não remover verificações TLS ou de pacotes.
 12. Reportar somente os testes executados. Não repetir os números de outra conversa como prova da versão atual.
+
+13. Usar apenas as 25 salas de `rooms.py`, incluindo **210**, nunca 2010. Validar catálogo no servidor.
+14. Reservar a sala no intervalo de pedidos pendentes/ativos. Sobreposição deve retornar **SALA EM USO**, inclusive com estoque livre. Revalidar dentro da transação no pedido e na entrega, considerando antecipações e atrasos; devolução parcial não libera a sala.
+15. Preservar início solicitado e horário real de entrega em campos distintos. Não renomear salas antigas nem reescrever horários sem evidência.
+16. Histórico usa filtros no servidor sobre todo o banco e paginação de 50 registros. Preservar acesso às conferências legadas.
+17. Manter a melhoria visual leve: sala e prazos em destaque, contador da seleção, estados claros e layouts móveis. Não substituir o projeto por outro framework.

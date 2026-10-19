@@ -14,6 +14,18 @@ Python 3.12+, Flask, HTML/CSS/JavaScript sem frameworks visuais, SQLite local e 
 - A TI pode cancelar um pedido que ainda não foi entregue. Ele continua no histórico.
 - Não existe atribuição automática nem devolução apenas por quantidade. Professores não têm contas ou acesso ao histórico.
 
+## Salas e horários de uso
+
+Salas autorizadas: **101, 103, 105, 106, 107, 108, 109, 111, 113, 114, 115, 116, 201, 202, 203, 205, 206, 207, 208, 209, 210, 211, 212, 213 e 215**. O catálogo único fica em `rooms.py`; **2010 não é uma sala válida**.
+
+- O professor escolhe uma opção da lista. A consulta considera todo o intervalo informado e mostra **SALA EM USO** nas salas com conflito. Não expõe nomes de professores nem dados de empréstimos na consulta pública.
+- Pedidos pendentes e empréstimos ativos bloqueiam a sala no intervalo. Por exemplo, 09h–10h permite outro pedido às 10h, mas impede 09h30–10h30. A regra vale mesmo quando ainda há Chromebooks livres.
+- Pedir agora usa o instante do envio como início; agendar usa o início informado. A sala, o início solicitado e a previsão de devolução ficam no pedido e na auditoria. A entrega real fica em `confirmed_at`, sem substituir o início solicitado nos novos registros.
+- Cancelamento e devolução completa liberam a sala. Devolução parcial mantém o bloqueio. Empréstimos atrasados bloqueiam novos intervalos até a devolução completa; uma reserva já existente também será revalidada na entrega.
+- A verificação final ocorre dentro da mesma transação de escrita do pedido ou da entrega. Duas requisições concorrentes não conseguem reservar a mesma sala em intervalos sobrepostos. A consulta visual é informativa e se renova ao alterar horários e a cada 30 segundos com a página visível.
+- Sem JavaScript ou com falha na consulta visual, o servidor continua validando o pedido. Um pedido pendente vencido não bloqueia intervalos posteriores e deve ser cancelado pela TI se não for mais necessário.
+- Salas antigas e horários já gravados são preservados, sem remapeamento automático. Se houver pedidos sobrepostos criados antes desta regra, a TI deve conferir e cancelar o pedido pendente incorreto. Não são apagados registros históricos.
+
 ## Disponibilidade e concorrência
 
 Pedidos pendentes reservam **capacidade no intervalo**, mas não um código específico. A disponibilidade considera a ocupação máxima simultânea, não a soma de todos os pedidos do dia. Os intervalos são `[início, fim)`: uma reserva pode começar exatamente quando outra termina.
@@ -26,7 +38,7 @@ Pedidos não entregues cujo prazo já acabou permanecem no histórico/painel at�
 
 Mutações usam `BEGIN IMMEDIATE`, rollback e uma chave única de operação. Um índice único impede duas alocações abertas do mesmo aparelho. Reenviar o mesmo formulário com os mesmos dados não duplica pedido, entrega, devolução ou auditoria. Alterar dados de uma operação já utilizada exige abrir um formulário novo.
 
-O número “Fisicamente disponíveis” do painel **não é a disponibilidade para qualquer agendamento**. A verificação do intervalo sempre ocorre no servidor, ao enviar e ao entregar.
+O número “Aparelhos disponíveis” do painel **não é a disponibilidade para qualquer agendamento**. A verificação do intervalo sempre ocorre no servidor, ao enviar e ao entregar.
 
 ## Primeira instalação no Windows
 
@@ -60,7 +72,7 @@ Abra `http://127.0.0.1:5000/retirada` para o formulário e `http://127.0.0.1:500
 
 1. Pare o servidor. Guarde uma cópia completa da instalação anterior.
 2. Atualize os arquivos de código, preservando `.env`, `instance/` e seu banco configurado em `LOCAL_DB_PATH`.
-3. Instale as dependências e execute `scripts/init_db.py` antes de abrir a versão nova.
+3. Instale as dependências. Esta atualização de salas/UI sobre a revisão de 14/10/2026 não muda o esquema: não é necessário executar uma migração remota. Para primeira instalação ou atualização de versões mais antigas, execute `scripts/init_db.py` antes de abrir a aplicação.
 4. O script cria um **backup consistente via SQLite** do arquivo local existente, ao lado dele, com extensão `.backup-DATA.sqlite`. Se o backup falhar, a migração não começa. Guarde o backup em local protegido.
 5. A migração é aditiva, transacional e repetível. Mantém pedidos, status e a tabela original `loan_devices`; adiciona as tabelas de alocações verificadas, auditoria e operações. Nenhum empréstimo anterior vira entrega nova automaticamente.
 
@@ -83,9 +95,9 @@ Não substitua o banco antigo por um banco vazio. O ZIP final não contém dados
 
 - O painel consulta o servidor a cada **15 segundos**, inclusive para recuperar o horário de referência.
 - Há um aviso visual e, se ativado, sonoro a partir de cinco minutos antes da previsão; há outro no prazo. A precisão normal é a da consulta, até cerca de 15 segundos após o instante previsto.
-- Só entram nos alertas empréstimos entregues, com saldo em aberto e códigos conferidos. Pedidos pendentes, cancelados e totalmente devolvidos não alertam.
+- Os alertas de **devolução** incluem somente empréstimos entregues, com saldo em aberto e códigos conferidos. Existe também um aviso separado de novo pedido pendente. Cancelados e totalmente devolvidos não geram novos avisos.
 - Se o painel for aberto depois do prazo, emite apenas o aviso do prazo; não reproduz também o aviso de cinco minutos atrasado.
-- A TI precisa clicar em **Ativar som** após abrir/recarregar o painel. Pode silenciá-lo pelo mesmo botão. Não são solicitadas notificações do sistema operacional.
+- A TI pode clicar em **Ativar som** ou interagir no painel para liberar o áudio. O botão **Silenciar som** mantém os avisos visuais e lembra a preferência neste navegador; para voltar a ouvir, clique em **Ativar som**. Não são solicitadas notificações do sistema operacional.
 - Os avisos emitidos são identificados por pedido, prazo e fase no `localStorage` do navegador. Não repetem a cada consulta ou recarga. Outro navegador, limpeza de dados ou armazenamento bloqueado pode voltar a avisar. A interface informa quando o armazenamento está bloqueado.
 - Seleções e formulários em edição são preservados: os alertas continuam atualizando, mas a lista não é substituída enquanto há edição. Envie o formulário ou recarregue para descartar a seleção e atualizar as listas.
 - Se a sessão expirar, os dados do painel são removidos e é solicitado novo login. Falhas de rede são indicadas.
@@ -100,7 +112,7 @@ Não substitua o banco antigo por um banco vazio. O ZIP final não contém dados
 - Limites persistentes no banco: 10 tentativas de login e 30 envios públicos por endereço de conexão em janelas de 10 minutos. Guarda apenas HMAC do endereço, nunca o IP em texto; os registros vencidos são eliminados em novas verificações.
 - O aplicativo não confia em cabeçalhos `X-Forwarded-For` enviados pelo cliente. Atrás de proxy, valide qual endereço o ambiente entrega em `remote_addr`: usuários podem compartilhar o mesmo limite. Isso é uma barreira básica, não uma proteção completa contra ataques distribuídos.
 - Auditoria distingue operações e conferências, mas a senha compartilhada não identifica qual integrante da TI atuou. Não há contas individuais, e-mail, notificações do sistema operacional ou frameworks de frontend.
-- O histórico exibe os 300 pedidos recentes e também empréstimos antigos abertos ainda pendentes de conferência. Registros mais antigos permanecem no banco; não há busca, paginação nem exportação.
+- O histórico consulta todo o banco, com filtros por professor/número do pedido, sala, data de início e situação, paginando 50 registros. A filtragem acontece no servidor e funciona sem JavaScript. Há um link para conferências antigas pendentes, independentemente da página. Não há exportação.
 - O formulário é público: a aplicação não comprova que quem preenche é professor. A entrega física pela TI é a conferência operacional.
 
 ## Turso e Vercel — ainda sem validação real
@@ -117,7 +129,7 @@ O script não faz download nem backup do Turso. Não execute contra produção s
 
 Depois dessa validação, importe o repositório na Vercel, configure as variáveis de produção e `COOKIE_SECURE=1`, e teste o endereço HTTPS. O ponto de entrada é `app.py`. Confira as configurações atuais do provedor antes de publicar. Não envie `.env`, tokens, bancos ou backups ao GitHub.
 
-Somente depois de validar o endereço definitivo crie o QR Code para `https://SEU-DOMINIO/retirada`. Não use `/admin` ou `127.0.0.1` no QR. Não houve publicação nem deploy nesta revisão.
+Somente depois de validar o endereço definitivo crie o QR Code para `https://SEU-DOMINIO/retirada`. Não use `/admin` ou `127.0.0.1` no QR. Atualizar a branch conectada à Vercel pode disparar um deploy automático, conforme a configuração do projeto. A validação local não confirma o funcionamento no banco de produção.
 
 ## Testes e organização
 
@@ -137,7 +149,9 @@ Os testes Python usam bancos temporários, desativam `.env` e Turso, e fixam o r
 - `services.py`: intervalos, entregas/devoluções, auditoria e idempotência.
 - `database.py`: adaptador, transações, esquema e migração aditiva.
 - `scripts/init_db.py`: backup local e inicialização/migração explícita.
-- `static/request.js`: teclado numérico e alternância do agendamento.
+- `rooms.py`: catálogo único das 25 salas.
+- `static/request.js`: horários, agendamento e consulta de ocupação das salas.
+- `static/devices.js`: contagem e validação visual dos códigos selecionados.
 - `static/alerts.js` / `dashboard.js`: decisão de alertas, som e polling.
 - `templates/`: formulário, painel, seleção de códigos, histórico e erros.
 
@@ -145,10 +159,17 @@ Os testes Python usam bancos temporários, desativam `.env` e Turso, e fixam o r
 
 O painel mostra a quantidade de pedidos atrasados e prioriza esses empréstimos na lista de uso. Abra “Selecionar aparelhos para entrega” ou “Selecionar aparelhos devolvidos” para registrar a movimentação pelos códigos físicos.
 
-No histórico, a busca por professor, sala ou número e os filtros de situação atuam sobre os últimos 300 pedidos carregados (mais os empréstimos antigos ativos que exigem conferência). Abra um registro para ver aparelhos e movimentações. Os dados completos de auditoria continuam preservados no banco.
+No histórico, os filtros combinados de professor/número, sala, data de início e situação pesquisam todos os registros, com 50 resultados por página. Abra um registro para ver aparelhos e movimentações. Os dados completos de auditoria continuam preservados no banco.
 
-Os avisos usam um toque de duas frases, semelhante a uma notificação de celular. Não há botões de teste ou silenciamento. Clique em qualquer área do painel (ou use o teclado) para liberar o áudio quando o navegador exigir; o indicador informa se o som está ativado. Após navegar ou recarregar, pode ser necessária outra interação. Confira também o volume e se o site está silenciado no navegador.
+Os avisos usam um toque de duas frases, semelhante a uma notificação de celular. O controle Ativar/Silenciar som fica no topo do painel. Quando o som não está silenciado, clicar no painel ou usar o teclado também libera o áudio quando o navegador exigir; o indicador informa o estado. Após navegar ou recarregar, pode ser necessária outra interação. Confira também o volume e se o site está silenciado no navegador.
 
 Um pedido pendente ainda não avisado neste navegador gera um aviso visual e sonoro, inclusive ao abrir o painel. Empréstimos entregues, conferidos e com aparelhos ainda em uso geram avisos cinco minutos antes e no prazo de devolução. Cada evento é lembrado neste navegador para não repetir a cada consulta. Vários eventos na mesma consulta produzem um único toque. Se o áudio estiver bloqueado, um toque fica aguardando a interação no painel.
 
 Mantenha o painel aberto e o dispositivo acordado. Navegadores podem suspender áudio e consultas em abas em segundo plano ou com a tela bloqueada; não há garantia de alarme nessas condições. A consulta ocorre a cada 15 segundos, portanto um pedido novo ou prazo pode levar até a próxima consulta para gerar o aviso, além do tempo de rede.
+
+
+### Verificação opcional no navegador
+
+Com Node.js e Playwright disponíveis, execute `node tests/browser/smoke.cjs`. O teste inicia um servidor local exclusivo na porta 8765, usa banco SQLite temporário e relógio fixo, e fecha o servidor ao concluir. Não usa `.env` ou dados reais. Instale o Playwright fora do ambiente de produção; `CHROMIUM_PATH` permite informar um executável Chromium já instalado. `PYTHON_BIN` permite selecionar o Python com as dependências deste projeto. `SCREENSHOT_DIR` é opcional para salvar capturas de tela.
+
+O cenário cobre pedido imediato/agendado, sala ocupada, entrega pelos códigos, devolução parcial/completa, preservação das seleções, som, filtros do histórico, formulário sem JavaScript e larguras de 320 a 1280 pixels. Não confirma alto-falantes físicos nem Turso/Vercel.

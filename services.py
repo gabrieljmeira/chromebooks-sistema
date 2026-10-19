@@ -6,6 +6,7 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from database import connect, one, rows, transaction
+from rooms import ROOMS
 
 TZ = ZoneInfo("America/Sao_Paulo")
 
@@ -140,13 +141,69 @@ def capacity(db, start, end, current, exclude=None):
     return 20 - peak
 
 
+def requested_interval(kind, start, expected, current):
+    if kind not in ("now", "scheduled"):
+        raise ValidationError("Escolha Pedir agora ou Agendar entrega.")
+    end = clock(expected, current)
+    begin = current if kind == "now" else clock(start, current)
+    if kind == "scheduled" and begin <= current:
+        raise ValidationError("Agende a entrega para um horário futuro de hoje.")
+    if end <= begin:
+        raise ValidationError("A devolução de hoje deve ser posterior ao início do pedido.")
+    return begin, end
+
+
+def busy_rooms(db, start, end, current, exclude=None):
+    """Salas ocupadas em [início,fim); atrasos não presumem liberação física."""
+    occupied = set()
+    for loan in rows(db.execute(
+        "SELECT id,room,status,start_at,confirmed_at,expected_return_at FROM loans "
+        "WHERE status IN ('pending','active')"
+    )):
+        if loan["id"] == exclude:
+            continue
+        begin = datetime.fromisoformat(loan["start_at"])
+        finish = datetime.fromisoformat(loan["expected_return_at"])
+        if loan["status"] == "active":
+            # A entrega pode ter sido antecipada; considerar também a ocupação real.
+            actual = datetime.fromisoformat(loan["confirmed_at"]) if loan["confirmed_at"] else current
+            begin = min(begin, actual)
+            if finish <= current:
+                finish = end
+        if begin < end and start < finish:
+            occupied.add(loan["room"])
+    return occupied
+
+
+def assert_room_available(db, room, begin, end, current, exclude=None):
+    if room in busy_rooms(db, begin, end, current, exclude):
+        raise ValidationError(
+            "SALA EM USO: esta sala já possui um pedido nesse intervalo ou uma devolução atrasada. "
+            "Escolha outra sala ou outro horário."
+        )
+
+
+def room_availability(kind, start, expected):
+    current = now()
+    begin, end = requested_interval(kind, start, expected, current)
+    db = connect()
+    try:
+        occupied = busy_rooms(db, begin, end, current)
+        return {"busy": [room for room in ROOMS if room in occupied],
+                "start": stamp(begin), "end": stamp(end)}
+    finally:
+        db.close()
+
+
 def request_loan(name, room, qty, expected, kind="now", start=None, token=None):
     name = str(name or "").strip()
     room = str(room or "").strip()
-    if not 3 <= len(name) <= 100 or not 1 <= len(room) <= 40:
+    if not 3 <= len(name) <= 100:
         raise ValidationError(
-            "Informe nome (3 a 100 caracteres) e sala (1 a 40 caracteres)."
+            "Informe nome (3 a 100 caracteres)."
         )
+    if room not in ROOMS:
+        raise ValidationError("Selecione uma sala da lista.")
     qty = quantity(qty)
     if kind not in ("now", "scheduled"):
         raise ValidationError("Escolha Pedir agora ou Agendar entrega.")
@@ -164,14 +221,8 @@ def request_loan(name, room, qty, expected, kind="now", start=None, token=None):
         if previous is not None:
             return previous
         current = now()
-        end = clock(expected, current)
-        begin = current if kind == "now" else clock(start, current)
-        if kind == "scheduled" and begin <= current:
-            raise ValidationError("Agende a entrega para um horário futuro de hoje.")
-        if end <= begin:
-            raise ValidationError(
-                "A devolução de hoje deve ser posterior ao início do pedido."
-            )
+        begin, end = requested_interval(kind, start, expected, current)
+        assert_room_available(db, room, begin, end, current)
         if capacity(db, begin, end, current) < qty:
             raise ValidationError(
                 "Não há essa quantidade disponível durante todo o intervalo solicitado."
@@ -188,7 +239,7 @@ def request_loan(name, room, qty, expected, kind="now", start=None, token=None):
             fingerprint,
             loan_id,
             "pedido",
-            {"kind": kind, "start": stamp(begin), "end": stamp(end), "quantity": qty},
+            {"kind": kind, "room": room, "start": stamp(begin), "end": stamp(end), "quantity": qty},
         )
         return loan_id
 
@@ -210,6 +261,7 @@ def deliver_loan(loan_id, selected, token):
             raise ValidationError(
                 "A previsão de devolução passou. Cancele o pedido e registre outro."
             )
+        assert_room_available(db, loan["room"], current, end, current, exclude=loan_id)
         if capacity(db, current, end, current, exclude=loan_id) < len(selected):
             raise ValidationError(
                 "Esta entrega conflita com outros pedidos ou reservas."
@@ -228,8 +280,8 @@ def deliver_loan(loan_id, selected, token):
                 (loan_id, int(code[3:]), stamp(current)),
             )
         db.execute(
-            "UPDATE loans SET status='active',confirmed_at=?,start_at=? WHERE id=?",
-            (stamp(current), stamp(current), loan_id),
+            "UPDATE loans SET status='active',confirmed_at=? WHERE id=?",
+            (stamp(current), loan_id),
         )
         record(
             db,
@@ -368,7 +420,32 @@ def reconcile_loan(loan_id, selected, reason, token):
         )
 
 
-def snapshot(history=False):
+def history_selection(filters):
+    """Filtros parametrizados aplicados antes da paginação."""
+    clauses, params = [], []
+    if filters["search"]:
+        clauses.append("(instr(lower(professor_name),lower(?))>0 OR CAST(id AS TEXT)=?)")
+        params.extend([filters["search"], filters["search"]])
+    if filters["room"]:
+        clauses.append("room=?")
+        params.append(filters["room"])
+    if filters["date"]:
+        clauses.append("substr(start_at,1,10)=?")
+        params.append(filters["date"])
+    status = filters["status"]
+    if status == "overdue":
+        clauses.append("status='active' AND expected_return_at<=?")
+        params.append(stamp())
+    elif status == "review":
+        clauses.append("needs_review=1")
+    elif status:
+        clauses.append("status=?")
+        params.append(status)
+    where = " WHERE " + " AND ".join(clauses) if clauses else ""
+    return where, params
+
+
+def snapshot(history=False, filters=None):
     db = connect()
     try:
         # Uma leitura consistente mantém contadores e listas da mesma versão do banco.
@@ -378,7 +455,15 @@ def snapshot(history=False):
             if history
             else "SELECT * FROM loans WHERE status IN ('pending','active') ORDER BY start_at,id"
         )
-        loans = rows(db.execute(sql))
+        total, page = 0, 1
+        if history and filters is not None:
+            where, params = history_selection(filters)
+            total = one(db.execute("SELECT COUNT(*) AS n FROM loans" + where, params))["n"]
+            page = min(filters["page"], max(1, (total + 49) // 50))
+            loans = rows(db.execute("SELECT * FROM loans" + where + " ORDER BY id DESC LIMIT 50 OFFSET ?",
+                                    [*params, (page - 1) * 50]))
+        else:
+            loans = rows(db.execute(sql))
         ids = {l["id"] for l in loans}
         marks = ",".join("?" for _ in ids) or "NULL"
         allocations = rows(
@@ -387,6 +472,8 @@ def snapshot(history=False):
                 tuple(ids),
             )
         )
+        for allocation in allocations:
+            allocation["returned_at_label"] = datetime_label(allocation["returned_at"])
         legacy = rows(
             db.execute(
                 f"SELECT ld.*,d.code FROM loan_devices ld JOIN devices d ON d.id=ld.device_id WHERE ld.loan_id IN ({marks}) ORDER BY d.id",
@@ -410,6 +497,10 @@ def snapshot(history=False):
                 and loan["remaining"] > 0
                 and datetime.fromisoformat(loan["expected_return_at"]) <= current
             )
+            due = datetime.fromisoformat(loan["expected_return_at"])
+            loan["due_soon"] = loan["status"] == "active" and 0 < (due - current).total_seconds() <= 300
+            loan["expired"] = loan["status"] == "pending" and due <= current
+            loan["scheduled_later"] = loan["status"] == "pending" and datetime.fromisoformat(loan["start_at"]) > current
             for field in (
                 "start_at",
                 "expected_return_at",
@@ -464,6 +555,7 @@ def snapshot(history=False):
             "blocked": blocked,
             "server_time": stamp(current),
             "audit": [a for a in audit if a["loan_id"] in ids],
+            "page": page, "total": total, "has_next": page * 50 < total,
         }
     finally:
         db.close()
@@ -473,8 +565,8 @@ def get_dashboard():
     return snapshot()
 
 
-def get_history():
-    return snapshot(True)
+def get_history(filters=None):
+    return snapshot(True, filters)
 
 
 def stock_count():
