@@ -4,7 +4,9 @@
   const alertBox = document.getElementById('alerts');
   const soundStatus = document.getElementById('sound-status');
   const soundToggle = document.getElementById('sound-toggle');
+  const resume = document.getElementById('resume-updates');
   let audio = null, dirty = false, stopped = false, queuedSound = false;
+  let timer, refreshing = false, refreshAgain = false;
   let muted = false;
   try { muted = localStorage.getItem('chromebooks:sound-muted') === '1'; } catch {}
   const memory = new Set();
@@ -61,6 +63,14 @@
   });
   content.addEventListener('change', () => { dirty = true; });
   content.addEventListener('input', () => { dirty = true; });
+  resume?.addEventListener('click', () => {
+    content.querySelectorAll('form').forEach(form => form.reset());
+    dirty = false;
+    window.DevicePicker?.initialize(content);
+    resume.hidden = true;
+    if (typeof clearTimeout === 'function') clearTimeout(timer);
+    refresh(true);
+  });
   showSound();
   async function claim(key) {
     const storageKey = 'chromebooks:alert:' + key;
@@ -77,8 +87,10 @@
     };
     return navigator.locks ? navigator.locks.request(storageKey, run) : run();
   }
-  async function refresh() {
+  async function refresh(force = false) {
     if (stopped) return;
+    if (refreshing) { refreshAgain = refreshAgain || force; return; }
+    refreshing = true;
     try {
       const response = await fetch('/admin/estado', { cache: 'no-store', credentials: 'same-origin' });
       if (response.status === 401) {
@@ -89,7 +101,8 @@
       }
       if (!response.ok) throw new Error('fetch');
       const data = await response.json();
-      const editing = dirty || content.contains(document.activeElement);
+      const editing = !force && (dirty || content.contains(document.activeElement));
+      if (resume) resume.hidden = !editing;
       if (!editing) {
         const opened = [...content.querySelectorAll('details[open][id]')].map(d => d.id);
         content.innerHTML = data.html;
@@ -103,11 +116,14 @@
       const events = [
         ...(data.pending || []).map(loan => ({ key: `new:${loan.id}`, id: loan.id, phase: 'new' })),
         ...LoanAlerts.pendingAlerts(data.loans, Date.parse(data.server_time)),
+        ...(LoanAlerts.pendingDeliveries?.(data.deliveries, Date.parse(data.server_time)) || []),
       ];
       for (const event of events) {
         if (!(await claim(event.key))) continue;
         const message = document.createElement('p'); message.className = 'notice error';
-        message.textContent = event.phase === 'new'
+        message.textContent = event.phase === 'delivery'
+          ? `Pedido #${event.id}: chegou o horário de entrega agendada.`
+          : event.phase === 'new'
           ? `Novo pedido #${event.id}: aguardando entrega pela TI.`
           : event.phase === 'soon'
           ? `Pedido #${event.id}: devolução prevista em até 5 minutos.`
@@ -120,7 +136,12 @@
     } catch {
       status.textContent = 'Sem atualização: confira a conexão. Os dados exibidos podem estar desatualizados.';
     } finally {
-      if (!stopped) setTimeout(refresh, 15000);
+      refreshing = false;
+      if (!stopped) {
+        const again = refreshAgain;
+        refreshAgain = false;
+        timer = setTimeout(() => refresh(again), again ? 0 : 15000);
+      }
     }
   }
   refresh();

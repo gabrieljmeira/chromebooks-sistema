@@ -6,6 +6,9 @@ import os
 import secrets
 import sqlite3
 import time
+import csv
+import io
+import json
 from datetime import date, timedelta
 from functools import wraps
 
@@ -19,11 +22,17 @@ from flask import (
     render_template,
     request,
     session,
+    g,
+    Response,
     url_for,
 )
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash
 import services
+import management
+import accounts
+import backups
+from database import DatabaseUnavailable, connect, one, rows
 from rooms import ROOMS
 
 load_dotenv()
@@ -53,11 +62,46 @@ def auth_version():
 
 
 def authorized():
-    return bool(
+    basic = bool(
         session.get("admin")
         and 0 <= time.time() - session.get("authenticated_at", 0) < 8 * 3600
-        and hmac.compare_digest(session.get("auth_version", ""), auth_version())
     )
+    if not basic:
+        return False
+    if session.get("user_id"):
+        if not hasattr(g, "identity"):
+            g.identity = accounts.get_user(session["user_id"])
+        user = g.identity
+        if not user or not user["active"] or not hmac.compare_digest(session.get("user_version", ""), user["version"]):
+            return False
+        g.role = user["role"]
+        return True
+    if not hasattr(g, "accounts_configured"):
+        g.accounts_configured = accounts.configured()
+    g.role = "manager"
+    return not g.accounts_configured and hmac.compare_digest(session.get("auth_version", ""), auth_version())
+
+
+def is_manager():
+    return getattr(g, "role", "") == "manager"
+
+
+@app.template_filter("field_label")
+def field_label(value):
+    return {"professor_name": "Professor", "room": "Sala", "quantity": "Quantidade", "start_at": "Início solicitado", "expected_return_at": "Devolução prevista", "kind": "Tipo de pedido", "device_id": "Aparelho", "returned_at": "Recebimento"}.get(value, value)
+
+
+@app.template_filter("change_value")
+def change_value(value, field):
+    if value is None:
+        return "Sem registro / em uso"
+    if field == "device_id":
+        return f"CH-{int(value):03}"
+    if field.endswith("_at"):
+        return services.datetime_label(value)
+    if field == "kind":
+        return "Agendado" if value == "scheduled" else "Pedir agora"
+    return value
 
 
 def csrf_token():
@@ -82,11 +126,12 @@ def operation(scope):
     return data["nonce"]
 
 
-app.jinja_env.globals.update(csrf_token=csrf_token, form_token=form_token, rooms=ROOMS)
+app.jinja_env.globals.update(csrf_token=csrf_token, form_token=form_token, rooms=ROOMS, is_manager=is_manager)
 
 
 @app.before_request
 def protect_post():
+    g.actor_token = services.actor.set(session.get("username", "TI (senha compartilhada)") if session.get("admin") else "Professor (formulário)")
     if request.method == "POST":
         expected = session.get("csrf", "")
         submitted = request.form.get("csrf", "")
@@ -97,6 +142,13 @@ def protect_post():
                 400,
                 description="Formulário expirado. Atualize a página e tente novamente.",
             )
+
+
+@app.teardown_request
+def reset_actor(error):
+    if hasattr(g, "actor_token"):
+        services.actor.reset(g.actor_token)
+        del g.actor_token
 
 
 @app.after_request
@@ -122,6 +174,16 @@ def admin_required(fn):
             return redirect(url_for("admin_login"))
         return fn(*args, **kwargs)
 
+    return wrapped
+
+
+def manager_required(fn):
+    @admin_required
+    @wraps(fn)
+    def wrapped(*args, **kwargs):
+        if not is_manager():
+            abort(403, description="Este recurso exige uma conta de gestor da TI.")
+        return fn(*args, **kwargs)
     return wrapped
 
 
@@ -183,12 +245,17 @@ def success(request_id):
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
     status = 200
+    individual = accounts.configured()
     if request.method == "POST":
         limit("login", 10)
         valid = False
+        user = None
         try:
             stored = password_hash()
-            if (
+            if individual and len(request.form.get("password", "")) <= 1024:
+                user = accounts.authenticate(request.form.get("username", ""), request.form.get("password", ""))
+                valid = user is not None
+            elif not individual and (
                 stored.startswith(("scrypt:", "pbkdf2:"))
                 and len(request.form.get("password", "")) <= 1024
             ):
@@ -201,13 +268,17 @@ def admin_login():
             session["admin"] = True
             session["authenticated_at"] = time.time()
             session["auth_version"] = auth_version()
+            if user:
+                session["user_id"] = user["id"]
+                session["username"] = user["username"]
+                session["user_version"] = user["version"]
             return redirect(url_for("admin_dashboard"), 303)
         flash(
             "Não foi possível entrar. Confira a senha e a configuração administrativa.",
             "error",
         )
         status = 401
-    return render_template("login.html"), status
+    return render_template("login.html", individual=individual), status
 
 
 @app.post("/admin/logout")
@@ -241,12 +312,23 @@ def admin_state():
         loans=alerts,
         server_time=data["server_time"],
         pending=[{"id": loan["id"]} for loan in data["pending"]],
+        deliveries=[{"id": loan["id"], "start": loan["start_at"], "expected": loan["expected_return_at"]} for loan in data["pending"] if loan["kind"] == "scheduled" and not loan["expired"]],
     )
 
 
 @app.get("/admin/historico")
 @admin_required
 def admin_history():
+    filters = history_filters()
+    data = services.get_history(filters)
+    link_args = {key: value for key, value in filters.items() if key != "page" and value}
+    return render_template("history.html", data=data, filters=filters,
+                           export_url=url_for("admin_export", **link_args),
+                           previous_url=url_for("admin_history", **link_args, page=data["page"] - 1),
+                           next_url=url_for("admin_history", **link_args, page=data["page"] + 1))
+
+
+def history_filters():
     filters = {key: request.args.get(key, "").strip() for key in ("search", "room", "date", "status")}
     filters["search"] = filters["search"][:100]
     filters["room"] = filters["room"][:40]  # Permite consultar também salas antigas.
@@ -261,11 +343,142 @@ def admin_history():
         filters["page"] = max(1, min(int(request.args.get("page", "1")), 1000000))
     except ValueError:
         filters["page"] = 1
-    data = services.get_history(filters)
-    link_args = {key: value for key, value in filters.items() if key != "page" and value}
-    return render_template("history.html", data=data, filters=filters,
-                           previous_url=url_for("admin_history", **link_args, page=data["page"] - 1),
-                           next_url=url_for("admin_history", **link_args, page=data["page"] + 1))
+    return filters
+
+
+@app.get("/admin/exportar.csv")
+@admin_required
+def admin_export():
+    where, params = services.history_selection(history_filters())
+    db = connect()
+    try:
+        db.execute("BEGIN")
+        loans = rows(db.execute("SELECT * FROM loans" + where + " ORDER BY id DESC", params))
+        allocations = rows(db.execute("SELECT a.*,d.code FROM allocations a JOIN devices d ON d.id=a.device_id ORDER BY a.id"))
+        db.commit()
+    finally:
+        db.close()
+    output = io.StringIO(newline="")
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow(["Pedido", "Professor", "Sala", "Quantidade", "Situação", "Início solicitado", "Entrega real", "Previsão devolução", "Devolução completa", "Aparelhos", "Ainda em uso"])
+    def safe(value):
+        value = str(value if value is not None else "")
+        return "'" + value if value.lstrip().startswith(("=", "+", "-", "@")) or value.startswith(("\t", "\r", "\n")) else value
+    for loan in loans:
+        devices = [a for a in allocations if a["loan_id"] == loan["id"]]
+        row = [loan["id"], loan["professor_name"], loan["room"], loan["quantity"], loan["status"], *[services.datetime_label(loan[key]) for key in ("start_at", "confirmed_at", "expected_return_at", "returned_at")], ", ".join(a["code"] for a in devices), ", ".join(a["code"] for a in devices if a["returned_at"] is None)]
+        writer.writerow([safe(value) for value in row])
+    return Response("\ufeff" + output.getvalue(), mimetype="text/csv; charset=utf-8", headers={"Content-Disposition": 'attachment; filename="historico-chromebooks.csv"'})
+
+
+@app.route("/admin/inventario", methods=["GET", "POST"])
+@admin_required
+def admin_inventory():
+    if request.method == "POST":
+        token = operation("maintenance")
+        try:
+            state = request.form.get("state")
+            if state not in ("unavailable", "available"):
+                raise services.ValidationError("Selecione a situação do aparelho.")
+            management.set_unavailable(request.form.get("code"), state == "unavailable", request.form.get("reason"), token)
+            flash("Situação do aparelho registrada. Confira também as reservas no painel.", "success")
+        except services.ValidationError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("admin_inventory"), 303)
+    devices, events = management.inventory()
+    return render_template("inventory.html", devices=devices, events=events)
+
+
+@app.route("/admin/pedido/<int:loan_id>/<action>", methods=["GET", "POST"])
+@admin_required
+def admin_manage_loan(loan_id, action):
+    if action not in ("editar", "prorrogar", "corrigir"):
+        abort(404)
+    loan, allocations = management.correction_data(loan_id)
+    status = 200
+    if request.method == "POST":
+        token = operation(f"{action}:{loan_id}")
+        try:
+            if action == "editar":
+                management.edit_pending(loan_id, request.form.get("name"), request.form.get("room"), request.form.get("quantity"), request.form.get("start_time"), request.form.get("expected_return"), request.form.get("reason"), token)
+            elif action == "prorrogar":
+                management.extend_loan(loan_id, request.form.get("expected_return"), request.form.get("reason"), token)
+            else:
+                management.correct_allocation(loan_id, request.form.get("allocation_id"), request.form.get("code"), request.form.get("state"), request.form.get("reason"), token)
+            flash("Alteração registrada no histórico.", "success")
+            return redirect(url_for("admin_dashboard"), 303)
+        except services.ValidationError as exc:
+            flash(str(exc), "error")
+            status = 422
+    return render_template("manage_loan.html", loan=loan, allocations=allocations, action=action), status
+
+
+@app.route("/admin/contas", methods=["GET", "POST"])
+@manager_required
+def admin_accounts():
+    if request.method == "POST":
+        token = operation("accounts")
+        try:
+            if request.form.get("user_id"):
+                accounts.update_user(request.form.get("user_id"), request.form.get("role"), request.form.get("active") == "1", request.form.get("password"), token)
+            else:
+                accounts.create_user(request.form.get("username"), request.form.get("password"), request.form.get("role"), token, bootstrap=not session.get("user_id"))
+            flash("Conta salva. Alterações de acesso encerram as sessões anteriores dessa conta.", "success")
+            if not session.get("user_id") or str(session.get("user_id")) == request.form.get("user_id"):
+                session.clear()
+                return redirect(url_for("admin_login"), 303)
+        except services.ValidationError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("admin_accounts"), 303)
+    return render_template("accounts.html", users=accounts.list_users())
+
+
+@app.route("/admin/minha-senha", methods=["GET", "POST"])
+@admin_required
+def admin_password():
+    if not session.get("user_id"):
+        return redirect(url_for("admin_accounts"))
+    if request.method == "POST":
+        token = operation("password")
+        try:
+            accounts.change_password(session["user_id"], request.form.get("old_password"), request.form.get("password"), token)
+            session.clear()
+            flash("Senha alterada. Entre novamente.", "success")
+            return redirect(url_for("admin_login"), 303)
+        except services.ValidationError as exc:
+            flash(str(exc), "error")
+    return render_template("password.html")
+
+
+@app.get("/saude")
+def health():
+    try:
+        db = connect()
+        try:
+            db.execute("SELECT id FROM devices LIMIT 1")
+            db.execute("SELECT start_at FROM loans LIMIT 1")
+            db.execute("SELECT id FROM allocations LIMIT 1")
+        finally:
+            db.close()
+        return jsonify(status="ok")
+    except DatabaseUnavailable:
+        return jsonify(status="indisponivel"), 503
+
+
+@app.get("/admin/diagnostico")
+@manager_required
+def admin_diagnostics():
+    devices, _ = management.inventory()
+    checks = {"Banco": "Turso" if os.getenv("TURSO_DATABASE_URL", "").strip() else "SQLite local", "Inventário": f"{len(devices)} aparelhos cadastrados", "Acesso": "Contas individuais" if accounts.configured() else "Senha compartilhada: crie a primeira conta de gestor", "Alertas": "Mantenha o painel aberto, o som ativado e o computador acordado"}
+    return render_template("diagnostics.html", checks=checks)
+
+
+@app.post("/admin/backup")
+@manager_required
+def admin_backup():
+    operation("backup")
+    content = json.dumps(backups.snapshot(), ensure_ascii=False, indent=2)
+    return Response(content, mimetype="application/json", headers={"Content-Disposition": 'attachment; filename="backup-chromebooks.json"'})
 
 
 @app.post("/admin/<action>/<int:loan_id>")
@@ -297,10 +510,19 @@ def admin_action(action, loan_id):
 
 
 @app.errorhandler(400)
+@app.errorhandler(403)
 @app.errorhandler(413)
 @app.errorhandler(429)
 def input_error(error):
     return render_template("error.html", message=error.description), error.code
+
+
+@app.errorhandler(DatabaseUnavailable)
+def database_unavailable(error):
+    app.logger.error("Banco indisponível: %s", type(error.__cause__).__name__ if error.__cause__ else "configuracao")
+    if request.path == "/admin/estado" or request.path == "/salas/disponibilidade":
+        return jsonify(error=str(error)), 503
+    return render_template("error.html", message=str(error) + " Se você estava salvando uma alteração, confira o painel antes de repetir."), 503
 
 
 @app.errorhandler(sqlite3.OperationalError)

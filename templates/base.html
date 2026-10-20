@@ -18,6 +18,9 @@
       <nav aria-label="Painel TI">
         <a href="{{ url_for('admin_dashboard') }}" {% if request.endpoint == 'admin_dashboard' %}aria-current="page"{% endif %}>Painel</a>
         <a href="{{ url_for('admin_history') }}" {% if request.endpoint == 'admin_history' %}aria-current="page"{% endif %}>Histórico</a>
+        <a href="{{ url_for('admin_inventory') }}" {% if request.endpoint == 'admin_inventory' %}aria-current="page"{% endif %}>Aparelhos</a>
+        {% if is_manager() %}<a href="{{ url_for('admin_accounts') }}">Contas</a><a href="{{ url_for('admin_diagnostics') }}">Sistema</a>{% endif %}
+        {% if session.get('user_id') %}<a href="{{ url_for('admin_password') }}">Minha senha</a>{% endif %}
         <form action="{{ url_for('admin_logout') }}" method="post" class="inline-form">
           <input type="hidden" name="csrf" value="{{ csrf_token() }}">
           <button class="nav-button" type="submit">Sair</button>

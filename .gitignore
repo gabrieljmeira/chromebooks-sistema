@@ -7,3 +7,5 @@ instance/
 *.sqlite
 *.sqlite3
 .vercel/
+backups/
+*.backup.json

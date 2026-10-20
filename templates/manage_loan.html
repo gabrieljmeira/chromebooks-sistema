@@ -1,0 +1,19 @@
+{% extends 'base.html' %}{% block title %}Alterar pedido #{{ loan.id }}{% endblock %}{% block content %}
+<section class="panel narrow"><p class="eyebrow">PEDIDO #{{ loan.id }} · SALA {{ loan.room }}</p><h1>{{ {'editar':'Editar pedido','prorrogar':'Prorrogar devolução','corrigir':'Corrigir registro'}[action] }}</h1><p>{{ loan.professor_name }} · {{ loan.quantity }} aparelho(s)</p>
+<p class="hint">A alteração exige justificativa e fica no histórico. Sala, estoque e códigos serão conferidos novamente.</p>
+<form method="post" class="stack"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="operation" value="{{ request.form.get('operation') or form_token(action ~ ':' ~ loan.id) }}">
+{% if action == 'editar' %}
+<label for="name">Professor</label><input name="name" id="name" required minlength="3" maxlength="100" value="{{ request.form.get('name',loan.professor_name) }}">
+<label for="room">Sala</label><select name="room" id="room" required>{% for room in rooms %}<option value="{{ room }}" {% if request.form.get('room',loan.room)==room %}selected{% endif %}>Sala {{ room }}</option>{% endfor %}</select>
+<label for="quantity">Quantidade</label><select name="quantity" id="quantity">{% for n in range(1,21) %}<option value="{{ n }}" {% if request.form.get('quantity',loan.quantity)|int==n %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
+<label for="start_time">Início solicitado — hoje</label><input name="start_time" id="start_time" type="time" required value="{{ request.form.get('start_time',loan.start_at[11:16]) }}">
+{% endif %}
+{% if action in ('editar','prorrogar') %}<label for="expected_return">Devolução prevista — hoje</label><input name="expected_return" id="expected_return" type="time" required value="{{ request.form.get('expected_return',loan.expected_return_at[11:16]) }}">{% endif %}
+{% if action == 'corrigir' %}
+<p class="notice warning">Use somente para corrigir um registro incorreto. Uma troca física deve ser registrada como devolução e uma nova entrega. Os valores anteriores serão preservados na auditoria.</p>
+<label for="allocation_id">Registro a corrigir</label><select id="allocation_id" name="allocation_id" required>{% for item in allocations %}<option value="{{ item.id }}" {% if request.form.get('allocation_id')==item.id|string %}selected{% endif %}>{{ item.code }} · {{ 'Devolvido' if item.returned_at else 'Em uso' }}</option>{% endfor %}</select>
+<label for="code">Código correto</label><select name="code" id="code" required><option value="">Selecione o código correto</option>{% for n in range(1,21) %}{% set code='CH-%03d'|format(n) %}<option value="{{ code }}" {% if request.form.get('code')==code %}selected{% endif %}>{{ code }}</option>{% endfor %}</select>
+<label for="state">Situação correta</label><select name="state" id="state" required><option value="">Selecione a situação correta</option><option value="active" {% if request.form.get('state')=='active' %}selected{% endif %}>Em uso — desfazer recebimento incorreto</option><option value="returned" {% if request.form.get('state')=='returned' %}selected{% endif %}>Devolvido — recebimento já registrado ou recebido agora</option></select><p class="hint">Uma devolução já registrada mantém seu horário. Ao corrigir de Em uso para Devolvido, o recebimento usa o horário atual.</p>
+{% endif %}
+<label for="reason">Justificativa</label><textarea name="reason" id="reason" required minlength="10" maxlength="500">{{ request.form.get('reason','') }}</textarea><button class="primary">Salvar alteração no histórico</button><a class="ghost center" href="{{ url_for('admin_dashboard') }}">Voltar ao painel</a></form></section>
+{% endblock %}

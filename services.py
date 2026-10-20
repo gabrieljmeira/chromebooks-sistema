@@ -3,12 +3,14 @@
 import hashlib
 import json
 import re
+from contextvars import ContextVar
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from database import connect, one, rows, transaction
 from rooms import ROOMS
 
 TZ = ZoneInfo("America/Sao_Paulo")
+actor = ContextVar("actor", default="TI (senha compartilhada)")
 
 
 class ValidationError(ValueError):
@@ -83,6 +85,7 @@ def repeat(db, token, fingerprint):
 
 
 def record(db, token, fingerprint, loan_id, action, detail):
+    detail = {**detail, "actor": actor.get()}
     db.execute("INSERT INTO operations VALUES (?,?,?)", (token, fingerprint, loan_id))
     db.execute(
         "INSERT INTO audit(loan_id,action,happened_at,detail) VALUES (?,?,?,?)",
@@ -138,7 +141,8 @@ def capacity(db, start, end, current, exclude=None):
     for _, delta in sorted(events, key=lambda e: (e[0], e[1])):
         used += delta
         peak = max(peak, used)
-    return 20 - peak
+    unavailable = one(db.execute("SELECT COUNT(*) AS n FROM unavailable_devices"))["n"]
+    return 20 - unavailable - peak
 
 
 def requested_interval(kind, start, expected, current):
@@ -274,6 +278,9 @@ def deliver_loan(loan_id, selected, token):
             raise ValidationError(
                 "Um dos aparelhos selecionados já está emprestado. Atualize o painel."
             )
+        unavailable = {r["device_id"] for r in rows(db.execute("SELECT device_id FROM unavailable_devices"))}
+        if unavailable.intersection(int(c[3:]) for c in selected):
+            raise ValidationError("Um aparelho selecionado está em manutenção ou indisponível.")
         for code in selected:
             db.execute(
                 "INSERT INTO allocations(loan_id,device_id,delivered_at) VALUES (?,?,?)",
@@ -524,7 +531,16 @@ def snapshot(history=False, filters=None):
             )
         )
         free = rows(db.execute("SELECT * FROM devices ORDER BY id"))
-        free = [d for d in free if d["id"] not in occupied]
+        unavailable = rows(db.execute("SELECT u.*,d.code FROM unavailable_devices u JOIN devices d ON d.id=u.device_id ORDER BY device_id"))
+        unavailable_ids = {d["device_id"] for d in unavailable}
+        free = [d for d in free if d["id"] not in occupied and d["id"] not in unavailable_ids]
+        shortages = []
+        for loan in loans:
+            if loan["status"] == "pending":
+                begin = max(current, datetime.fromisoformat(loan["start_at"]))
+                end = datetime.fromisoformat(loan["expected_return_at"])
+                if begin < end and not blocked and capacity(db, begin, end, current, exclude=loan["id"]) < loan["quantity"]:
+                    shortages.append(loan["id"])
         audit = (
             rows(
                 db.execute(
@@ -545,12 +561,17 @@ def snapshot(history=False, filters=None):
             }.get(event["action"], event["action"])
             event["codes"] = detail.get("codes", detail.get("verified_codes", []))
             event["reason"] = detail.get("reason", "")
+            event["actor"] = detail.get("actor", "TI (registro anterior)")
+            event["changes"] = [{"field": key, "before": detail["before"].get(key), "after": detail["after"].get(key)} for key in detail.get("after", {}) if detail.get("before", {}).get(key) != detail["after"].get(key)] if "before" in detail else []
+            event["action_label"] = {"edicao": "Pedido alterado", "prorrogacao": "Devolução prorrogada", "correcao": "Registro corrigido"}.get(event["action"], event["action_label"])
         db.commit()
         return {
             "loans": loans,
             "pending": [l for l in loans if l["status"] == "pending"],
             "active": [l for l in loans if l["status"] == "active"],
             "free": free,
+            "unavailable": unavailable,
+            "shortages": shortages,
             "available": 0 if blocked else len(free),
             "blocked": blocked,
             "server_time": stamp(current),

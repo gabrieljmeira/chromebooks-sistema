@@ -9,6 +9,10 @@
     }
     return result;
   }
-  root.LoanAlerts = { pendingAlerts };
+  function pendingDeliveries(deliveries, nowMs) {
+    return (deliveries || []).filter(loan => Number.isFinite(Date.parse(loan.start)) && nowMs >= Date.parse(loan.start) && nowMs < Date.parse(loan.expected))
+      .map(loan => ({key: `delivery:${loan.id}:${loan.start}`, id: loan.id, phase: 'delivery'}));
+  }
+  root.LoanAlerts = { pendingAlerts, pendingDeliveries };
   if (typeof module !== 'undefined') module.exports = root.LoanAlerts;
 })(typeof window === 'undefined' ? globalThis : window);

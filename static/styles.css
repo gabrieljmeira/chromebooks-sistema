@@ -34,3 +34,5 @@
 @media(max-width:380px){.filter-grid{grid-template-columns:1fr}.device-picker{padding:8px}.device-picker label{flex-basis:100px;font-size:.85rem;padding:6px}.loan-times{flex-direction:column}}
 .section-heading .pill{white-space:nowrap;flex-shrink:0}
 @media(max-width:480px){.filter-grid{grid-template-columns:1fr}}
+.inventory-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.inventory-grid .panel{margin-bottom:0;padding:20px}.inventory-grid+.panel{margin-top:24px}.quick-links{display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:18px}.quick-links a{padding:8px 0}.audit-event{border-left:3px solid #dbe7f5;padding:1px 0 1px 14px;margin:14px 0}.audit-event p{margin:6px 0}.stack textarea{border:1px solid #cbd5e1;border-radius:7px;padding:12px}.site-header nav{row-gap:12px}.site-header{flex-wrap:wrap}.site-header nav a{min-height:36px;display:inline-flex;align-items:center}
+@media(max-width:700px){.inventory-grid{grid-template-columns:1fr}.site-header nav{gap:8px 16px}.inventory-grid .panel{padding:18px}}

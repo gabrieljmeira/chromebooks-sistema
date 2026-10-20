@@ -2,6 +2,12 @@
 
 Python 3.12+, Flask, HTML/CSS/JavaScript sem frameworks visuais, SQLite local e adaptador Turso. Inventário fixo: **CH-001 a CH-020**.
 
+## Recursos da TI — atualização de 20/10/2026
+
+Manutenção por código com redução real de capacidade; lembrete de entrega agendada; edição de pedidos pendentes; prorrogação com revalidação; correções justificadas e auditadas; retomada da atualização após seleção; contas individuais com perfis de técnico/gestor; CSV com os filtros do histórico; diagnóstico e backup lógico com restauração local validada. Consulte **[OPERACAO.md](OPERACAO.md)** para ativar contas, agendar cópias e recuperar dados.
+
+A primeira conta deve ser de gestor. Até criá-la, a senha administrativa atual continua funcionando; depois disso o acesso é por usuário individual e senha. Nenhuma conta é criada com senha padrão. A migração desta atualização cria somente tabelas adicionais e preserva os registros existentes.
+
 ## Funcionamento atual
 
 **Toda entrega é realizada pela TI.** O formulário público cria um pedido, nunca um empréstimo já entregue.
@@ -28,7 +34,7 @@ Salas autorizadas: **101, 103, 105, 106, 107, 108, 109, 111, 113, 114, 115, 116,
 
 ## Disponibilidade e concorrência
 
-Pedidos pendentes reservam **capacidade no intervalo**, mas não um código específico. A disponibilidade considera a ocupação máxima simultânea, não a soma de todos os pedidos do dia. Os intervalos são `[início, fim)`: uma reserva pode começar exatamente quando outra termina.
+Pedidos pendentes reservam **capacidade no intervalo**, mas não um código específico. Aparelhos indisponíveis reduzem a capacidade; reduções que comprometam reservas já existentes são destacadas para revisão pela TI. A disponibilidade considera a ocupação máxima simultânea, não a soma de todos os pedidos do dia. Os intervalos são `[início, fim)`: uma reserva pode começar exatamente quando outra termina.
 
 Empréstimos efetivamente entregues continuam ocupando códigos até a TI registrar a devolução. A previsão permite planejar reservas futuras, mas **não libera fisicamente aparelhos**. Um empréstimo atrasado passa a contar como indisponível em qualquer intervalo futuro até a devolução.
 
@@ -72,7 +78,7 @@ Abra `http://127.0.0.1:5000/retirada` para o formulário e `http://127.0.0.1:500
 
 1. Pare o servidor. Guarde uma cópia completa da instalação anterior.
 2. Atualize os arquivos de código, preservando `.env`, `instance/` e seu banco configurado em `LOCAL_DB_PATH`.
-3. Instale as dependências. Esta atualização de salas/UI sobre a revisão de 14/10/2026 não muda o esquema: não é necessário executar uma migração remota. Para primeira instalação ou atualização de versões mais antigas, execute `scripts/init_db.py` antes de abrir a aplicação.
+3. Instale as dependências. A versão de 20/10 cria automaticamente somente as tabelas adicionais de manutenção/contas em uma transação; preserve um backup antes da publicação. Para primeira instalação ou atualização de versões anteriores ao esquema de 14/10/2026, execute `scripts/init_db.py` antes de abrir a aplicação. Consulte `OPERACAO.md`.
 4. O script cria um **backup consistente via SQLite** do arquivo local existente, ao lado dele, com extensão `.backup-DATA.sqlite`. Se o backup falhar, a migração não começa. Guarde o backup em local protegido.
 5. A migração é aditiva, transacional e repetível. Mantém pedidos, status e a tabela original `loan_devices`; adiciona as tabelas de alocações verificadas, auditoria e operações. Nenhum empréstimo anterior vira entrega nova automaticamente.
 
@@ -95,29 +101,29 @@ Não substitua o banco antigo por um banco vazio. O ZIP final não contém dados
 
 - O painel consulta o servidor a cada **15 segundos**, inclusive para recuperar o horário de referência.
 - Há um aviso visual e, se ativado, sonoro a partir de cinco minutos antes da previsão; há outro no prazo. A precisão normal é a da consulta, até cerca de 15 segundos após o instante previsto.
-- Os alertas de **devolução** incluem somente empréstimos entregues, com saldo em aberto e códigos conferidos. Existe também um aviso separado de novo pedido pendente. Cancelados e totalmente devolvidos não geram novos avisos.
+- Os alertas de **devolução** incluem somente empréstimos entregues, com saldo em aberto e códigos conferidos. Existem também avisos separados de novo pedido pendente e de chegada do horário de entrega agendada. Cancelados e totalmente devolvidos não geram novos avisos.
 - Se o painel for aberto depois do prazo, emite apenas o aviso do prazo; não reproduz também o aviso de cinco minutos atrasado.
 - A TI pode clicar em **Ativar som** ou interagir no painel para liberar o áudio. O botão **Silenciar som** mantém os avisos visuais e lembra a preferência neste navegador; para voltar a ouvir, clique em **Ativar som**. Não são solicitadas notificações do sistema operacional.
 - Os avisos emitidos são identificados por pedido, prazo e fase no `localStorage` do navegador. Não repetem a cada consulta ou recarga. Outro navegador, limpeza de dados ou armazenamento bloqueado pode voltar a avisar. A interface informa quando o armazenamento está bloqueado.
-- Seleções e formulários em edição são preservados: os alertas continuam atualizando, mas a lista não é substituída enquanto há edição. Envie o formulário ou recarregue para descartar a seleção e atualizar as listas.
+- Seleções e formulários em edição são preservados: os alertas continuam atualizando, mas a lista não é substituída enquanto há edição. Envie o formulário ou clique em **Descartar seleção e atualizar** para retomar as listas sem gravar uma movimentação.
 - Se a sessão expirar, os dados do painel são removidos e é solicitado novo login. Falhas de rede são indicadas.
 
 **O painel precisa permanecer aberto e o dispositivo acordado.** Navegadores podem suspender timers e áudio em segundo plano; isto não é um serviço de notificação garantida com o navegador fechado.
 
 ## Segurança e limites
 
-- Senha administrativa somente como hash; sessão assinada, HttpOnly, SameSite=Lax, Secure em HTTPS e validade absoluta de 8 horas, sem renovação pelo polling. Trocar o hash invalida sessões anteriores.
+- Senhas somente como hash; contas individuais opcionais na ativação, com perfis de gestor e técnico. Sessão assinada, HttpOnly, SameSite=Lax, Secure em HTTPS e validade absoluta de 8 horas, sem renovação pelo polling. Alterar senha/perfil/situação invalida sessões da conta; até a primeira conta, a rotação de `ADMIN_PASSWORD_HASH` invalida o acesso compartilhado.
 - CSRF em todos os POSTs e identificador de operação assinado, vinculado à sessão e com validade de 8 horas. Ações de alteração não aceitam GET.
 - Consultas parametrizadas, validação no servidor, escape HTML do Jinja, limite de corpo de 16 KiB, CSP e proibição de enquadramento em iframe. Respostas não são cacheadas.
 - Limites persistentes no banco: 10 tentativas de login e 30 envios públicos por endereço de conexão em janelas de 10 minutos. Guarda apenas HMAC do endereço, nunca o IP em texto; os registros vencidos são eliminados em novas verificações.
 - O aplicativo não confia em cabeçalhos `X-Forwarded-For` enviados pelo cliente. Atrás de proxy, valide qual endereço o ambiente entrega em `remote_addr`: usuários podem compartilhar o mesmo limite. Isso é uma barreira básica, não uma proteção completa contra ataques distribuídos.
-- Auditoria distingue operações e conferências, mas a senha compartilhada não identifica qual integrante da TI atuou. Não há contas individuais, e-mail, notificações do sistema operacional ou frameworks de frontend.
-- O histórico consulta todo o banco, com filtros por professor/número do pedido, sala, data de início e situação, paginando 50 registros. A filtragem acontece no servidor e funciona sem JavaScript. Há um link para conferências antigas pendentes, independentemente da página. Não há exportação.
+- Auditoria identifica o usuário das novas movimentações quando contas individuais estão ativadas. Registros anteriores mantêm a identificação disponível na época; não se inventa um responsável. Não há e-mail, notificações do sistema operacional ou frameworks de frontend.
+- O histórico consulta todo o banco, com filtros por professor/número do pedido, sala, data de início e situação, paginando 50 registros. A filtragem acontece no servidor e funciona sem JavaScript. Há um link para conferências antigas pendentes, independentemente da página. A exportação CSV considera todos os resultados dos mesmos filtros, sem o limite visual de página.
 - O formulário é público: a aplicação não comprova que quem preenche é professor. A entrega física pela TI é a conferência operacional.
 
-## Turso e Vercel — ainda sem validação real
+## Turso e Vercel
 
-O adaptador usa `turso_serverless==0.1.0` e requer Turso compatível com esse SDK. Na Vercel, a ausência de `TURSO_DATABASE_URL` gera erro explícito; **não há fallback para SQLite temporário**.
+O adaptador usa `turso_serverless==0.1.0` e requer Turso compatível com esse SDK. Na Vercel, a ausência de `TURSO_DATABASE_URL` gera uma resposta 503 com orientação; **não há fallback para SQLite temporário**.
 
 Antes de publicar, configure um banco remoto de homologação com as variáveis `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SECRET_KEY` e `ADMIN_PASSWORD_HASH`. Faça backup pelo provedor antes de migrar um banco remoto existente. A inicialização remota exige autorização explícita no comando:
 
@@ -173,3 +179,5 @@ Mantenha o painel aberto e o dispositivo acordado. Navegadores podem suspender �
 Com Node.js e Playwright disponíveis, execute `node tests/browser/smoke.cjs`. O teste inicia um servidor local exclusivo na porta 8765, usa banco SQLite temporário e relógio fixo, e fecha o servidor ao concluir. Não usa `.env` ou dados reais. Instale o Playwright fora do ambiente de produção; `CHROMIUM_PATH` permite informar um executável Chromium já instalado. `PYTHON_BIN` permite selecionar o Python com as dependências deste projeto. `SCREENSHOT_DIR` é opcional para salvar capturas de tela.
 
 O cenário cobre pedido imediato/agendado, sala ocupada, entrega pelos códigos, devolução parcial/completa, preservação das seleções, som, filtros do histórico, formulário sem JavaScript e larguras de 320 a 1280 pixels. Não confirma alto-falantes físicos nem Turso/Vercel.
+
+O teste adicional `node tests/browser/management.cjs` verifica os novos fluxos de manutenção, edição, prorrogação, correção, contas, exportação e backup em banco temporário. Execute os testes de navegador separadamente, pois usam a mesma porta local.

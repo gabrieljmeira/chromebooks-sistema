@@ -7,29 +7,98 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 
+class DatabaseUnavailable(RuntimeError):
+    """Falha de conexão/configuração com mensagem pública sem credenciais."""
+
+
+FEATURE_SCHEMA = (
+    "CREATE TABLE IF NOT EXISTS unavailable_devices (device_id INTEGER PRIMARY KEY REFERENCES devices(id), reason TEXT NOT NULL, changed_at TEXT NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS management_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT NOT NULL, happened_at TEXT NOT NULL, actor TEXT NOT NULL, detail TEXT NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS feature_operations (token TEXT PRIMARY KEY, payload TEXT NOT NULL, result TEXT NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS admin_users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('manager','technician')), active INTEGER NOT NULL CHECK(active IN (0,1)), version TEXT NOT NULL)",
+)
+_prepared = set()
+
+
+class Connection:
+    """Uniformiza erros dos drivers; não repete operações de escrita."""
+
+    def __init__(self, db, errors):
+        self.db, self.errors = db, errors
+
+    def execute(self, *args):
+        try:
+            return self.db.execute(*args)
+        except self.errors as exc:
+            raise DatabaseUnavailable("Banco indisponível. A TI deve conferir a conexão e a inicialização do banco.") from exc
+
+    def commit(self):
+        try:
+            return self.db.commit()
+        except self.errors as exc:
+            raise DatabaseUnavailable("Não foi possível confirmar a gravação no banco. Confira o painel antes de repetir.") from exc
+
+    def rollback(self):
+        return self.db.rollback()
+
+    def __getattr__(self, name):
+        return getattr(self.db, name)
+
+
 def connect():
     url = os.getenv("TURSO_DATABASE_URL", "").strip()
     if url:
-        if urlsplit(url).scheme not in ("https", "libsql", "turso"):
-            raise RuntimeError("Use uma URL Turso com transporte HTTPS.")
+        try:
+            valid_url = urlsplit(url).scheme in ("https", "libsql", "turso") and bool(urlsplit(url).hostname)
+        except ValueError:
+            valid_url = False
+        if not valid_url:
+            raise DatabaseUnavailable("Configuração do banco inválida. A TI deve conferir TURSO_DATABASE_URL.")
         token = os.getenv("TURSO_AUTH_TOKEN", "").strip()
         if not token:
-            raise RuntimeError("Defina TURSO_AUTH_TOKEN.")
-        import turso_serverless
+            raise DatabaseUnavailable("Banco não configurado: a TI deve definir TURSO_AUTH_TOKEN na hospedagem.")
+        try:
+            import turso_serverless
+        except ImportError as exc:
+            raise DatabaseUnavailable("Driver do banco ausente. A TI deve conferir as dependências do deploy.") from exc
 
-        db = turso_serverless.connect(url, auth_token=token, isolation_level=None)
+        try:
+            db = Connection(turso_serverless.connect(url, auth_token=token, isolation_level=None), (turso_serverless.OperationalError, OSError))
+        except (turso_serverless.Error, OSError) as exc:
+            raise DatabaseUnavailable("Banco indisponível. A TI deve conferir URL e token na hospedagem.") from exc
+        identity = ("turso", url)
+    else:
+        if os.getenv("VERCEL"):
+            raise DatabaseUnavailable("Banco Turso não configurado: a TI deve definir TURSO_DATABASE_URL na hospedagem.")
+        path = Path(os.getenv("LOCAL_DB_PATH", "instance/chromebooks.db"))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            db = Connection(sqlite3.connect(path, timeout=15, isolation_level=None), (sqlite3.OperationalError,))
+        except sqlite3.Error as exc:
+            raise DatabaseUnavailable("Banco local indisponível. Confira LOCAL_DB_PATH e as permissões da pasta.") from exc
+        db.execute("PRAGMA busy_timeout = 15000")
+        identity = ("local", str(path.resolve()))
+    try:
         db.execute("PRAGMA foreign_keys = ON")
+        if identity not in _prepared:
+            # Migração apenas aditiva: uma transação, segura entre instâncias.
+            # Não altera empréstimos, códigos, senhas ou horários existentes.
+            db.execute("BEGIN IMMEDIATE")
+            try:
+                for sql in FEATURE_SCHEMA:
+                    db.execute(sql)
+                db.commit()
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                raise
+            _prepared.add(identity)
         return db
-    if os.getenv("VERCEL"):
-        raise RuntimeError(
-            "Na Vercel é obrigatório configurar o banco Turso persistente."
-        )
-    path = Path(os.getenv("LOCAL_DB_PATH", "instance/chromebooks.db"))
-    path.parent.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(path, timeout=15, isolation_level=None)
-    db.execute("PRAGMA foreign_keys = ON")
-    db.execute("PRAGMA busy_timeout = 15000")
-    return db
+    except Exception:
+        db.close()
+        raise
 
 
 def rows(cursor):
@@ -50,7 +119,10 @@ def transaction():
         yield db
         db.commit()
     except Exception:
-        db.rollback()
+        try:
+            db.rollback()
+        except Exception:
+            pass  # Preserva a falha original; nenhuma escrita é repetida automaticamente.
         raise
     finally:
         db.close()

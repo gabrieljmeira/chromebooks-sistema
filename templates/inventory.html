@@ -1,0 +1,11 @@
+{% extends 'base.html' %}{% block title %}Aparelhos da TI{% endblock %}{% block content %}
+<div class="heading"><div><p class="eyebrow">INVENTÁRIO</p><h1>Aparelhos</h1><p class="muted">Indisponíveis não entram nas entregas nem na capacidade de novas reservas.</p></div><a class="ghost" href="{{ url_for('admin_dashboard') }}">Ver reservas</a></div>
+<div class="inventory-grid">
+{% for device in devices %}<article class="panel"><div class="card-heading"><h2>{{ device.code }}</h2><span class="pill {{ 'late' if device.reason else ('neutral' if device.loan_id else 'ok') }}">{{ 'Indisponível' if device.reason else ('Em uso' if device.loan_id else 'Na TI') }}</span></div>
+{% if device.loan_id %}<p>Empréstimo #{{ device.loan_id }}. Registre a devolução antes de colocar em manutenção.</p>{% else %}
+{% if device.reason %}<p>{{ device.reason }}</p>{% endif %}
+<details class="loan-action"><summary>{{ 'Liberar aparelho' if device.reason else 'Marcar indisponível' }}</summary><form method="post" class="stack">
+<input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="operation" value="{{ form_token('maintenance') }}"><input type="hidden" name="code" value="{{ device.code }}"><input type="hidden" name="state" value="{{ 'available' if device.reason else 'unavailable' }}">
+<label for="reason-{{ device.id }}">{{ 'Motivo da liberação' if device.reason else 'Defeito ou motivo da indisponibilidade' }}</label><textarea name="reason" id="reason-{{ device.id }}" required minlength="10" maxlength="500"></textarea><button class="primary">{{ 'Liberar para uso' if device.reason else 'Registrar indisponibilidade' }}</button></form></details>{% endif %}</article>{% endfor %}
+</div><section class="panel"><h2>Últimas alterações do inventário</h2>{% for event in events %}<p><strong>{{ event.detail.code }}</strong> · {{ 'Indisponível' if event.detail.unavailable else 'Liberado' }} · {{ event.date }} · {{ event.actor }}<br>{{ event.detail.reason }}</p>{% else %}<p>Nenhuma manutenção registrada.</p>{% endfor %}</section>
+{% endblock %}

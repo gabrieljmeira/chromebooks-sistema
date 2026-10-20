@@ -1,9 +1,10 @@
 <div class="stats" aria-label="Resumo do painel">
-  <div class="stat"><span>Aparelhos disponíveis</span><strong>{{ data.available }} <small>/ 20</small></strong><span>Na TI · reservas por horário</span></div>
+  <div class="stat"><span>Aparelhos disponíveis</span><strong>{{ data.available }} <small>/ 20</small></strong><span>Na TI · {{ data.unavailable|length }} indisponível(is)</span><a href="{{ url_for('admin_inventory') }}">Gerenciar aparelhos</a></div>
   <div class="stat"><span>Aguardando entrega</span><strong>{{ data.pending|length }}</strong><a href="#pending-loans">Ver pedidos</a></div>
   <div class="stat"><span>Empréstimos ativos</span><strong>{{ data.active|length }}</strong><a href="#active-loans">Ver aparelhos em uso</a></div>
   <div class="stat"><span>Empréstimos atrasados</span><strong class="danger-text">{{ data.active|selectattr('overdue')|list|length }}</strong><span>Conferir devoluções</span></div>
 </div>
+{% if data.shortages %}<p class="notice error">Estoque reduzido ou devoluções atrasadas comprometem os pedidos {% for id in data.shortages %}#{{ id }}{{ ', ' if not loop.last else '' }}{% endfor %}. Confira as reservas antes das entregas.</p>{% endif %}
 {% if data.blocked %}<p class="notice error">Há empréstimos antigos com códigos não conferidos. Novos pedidos e entregas estão bloqueados. <a href="{{ url_for('admin_history',status='review') }}">Conferir registros antigos</a>.</p>{% endif %}
 <section id="pending-loans" class="loan-section">
 <div class="section-heading"><h2>Aguardando entrega pela TI</h2><span class="pill neutral">{{ data.pending|length }} {{ "pedido" if data.pending|length == 1 else "pedidos" }}</span></div>
@@ -19,7 +20,7 @@
     {% with devices=data.free,legend='Selecione os ' ~ loan.quantity ~ ' aparelhos efetivamente entregues' %}{% include '_devices.html' %}{% endwith %}
     <button class="primary" {% if data.blocked or data.available < loan.quantity %}disabled{% endif %}>Registrar entrega</button>
     {% if data.available < loan.quantity %}<p class="hint">Aguarde a devolução dos aparelhos necessários.</p>{% endif %}
-  </form>{% endif %}
+  </form><p><a href="{{ url_for('admin_manage_loan',loan_id=loan.id,action='editar') }}">Editar pedido e horário</a></p>{% endif %}
   <form class="cancel-form" method="post" action="{{ url_for('admin_action',action='cancelar',loan_id=loan.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="operation" value="{{ form_token('cancelar:' ~ loan.id) }}"><button class="ghost">Cancelar pedido</button></form></details>
 </article>{% else %}<div class="empty-state"><strong>Nenhuma entrega pendente</strong><p>Os novos pedidos dos professores aparecerão aqui.</p></div>{% endfor %}
 </section>
@@ -32,6 +33,6 @@
   {% if loan.needs_review %}<p class="notice error">Códigos antigos não conferidos. <a href="{{ url_for('admin_history',status='review') }}">Conferir no histórico</a>.</p>
   {% else %}<p class="device-summary"><span class="hint">Aparelhos em uso</span><br>{{ loan.outstanding|map(attribute='code')|join(' · ') }}</p>
   <details class="loan-action" id="return-{{ loan.id }}"><summary>Selecionar aparelhos devolvidos</summary><form method="post" data-device-count="any" action="{{ url_for('admin_action',action='devolver',loan_id=loan.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="operation" value="{{ form_token('devolver:' ~ loan.id) }}">
-  {% with devices=loan.outstanding,legend='Selecione apenas os aparelhos recebidos pela TI' %}{% include '_devices.html' %}{% endwith %}<button class="primary">Registrar devolução</button></form></details>{% endif %}
+  {% with devices=loan.outstanding,legend='Selecione apenas os aparelhos recebidos pela TI' %}{% include '_devices.html' %}{% endwith %}<button class="primary">Registrar devolução</button></form></details><div class="quick-links"><a href="{{ url_for('admin_manage_loan',loan_id=loan.id,action='prorrogar') }}">Prorrogar devolução</a><a href="{{ url_for('admin_manage_loan',loan_id=loan.id,action='corrigir') }}">Corrigir registro</a></div>{% endif %}
 </article>{% else %}<div class="empty-state"><strong>Nenhum empréstimo em uso</strong><p>As entregas registradas pela TI aparecerão aqui até a devolução completa.</p></div>{% endfor %}
 </section>
