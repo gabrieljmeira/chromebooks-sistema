@@ -2,10 +2,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const fs = require('node:fs');
-const { pendingAlerts } = require('../static/alerts.js');
+const { pendingAlerts, pendingDeliveries } = require('../static/alerts.js');
 function setup() {
   const nodes = {};
-  for (const id of ['dashboard-content','sync-status','alerts','sound-status','sound-toggle']) nodes[id] = {
+  for (const id of ['dashboard-content','sync-status','alerts','sound-status','sound-toggle','resume-updates']) nodes[id] = {
     textContent: '', children: [], addEventListener(type,fn) { this[type]=fn; }, setAttribute() {}, contains() { return false; },
     querySelectorAll() { return []; }, prepend(item) { this.children.unshift(item); },
     replaceChildren() { this.children = []; }, append() {},
@@ -25,7 +25,7 @@ function setup() {
     createElement:()=>({}), activeElement:null},window:{AudioContext},navigator:{},
     localStorage:{getItem:key=>saved.get(key),setItem:(key,value)=>saved.set(key,value)},
     fetch:async()=>({ok:true,status:200,json:async()=>data}),
-    setTimeout:fn=>timer=fn,LoanAlerts:{pendingAlerts}};
+    setTimeout:fn=>timer=fn,LoanAlerts:{pendingAlerts,pendingDeliveries}};
   vm.runInNewContext(fs.readFileSync('static/dashboard.js','utf8'),context);
   const settle=()=>new Promise(resolve=>setImmediate(resolve));
   return {nodes,listeners,settle,saved,get tones(){return tones;}, async refresh(next){data=next;await timer();},get data(){return data;}};
@@ -43,6 +43,18 @@ test('novo pedido aguarda interação, toca e não se repete; prazo e pré-alert
   await app.refresh(app.data);assert.equal(app.tones,18);
   await app.refresh({...app.data,server_time:'2026-10-14T12:05:00-03:00'});assert.equal(app.tones,24);
   await app.refresh(app.data);assert.equal(app.tones,24);
+});
+test('lembrete de entrega toca uma vez e atualização pode ser retomada',async()=>{
+  const app=setup();await app.settle();await app.listeners.click();
+  await app.refresh({...app.data,deliveries:[{id:19,start:'2026-10-14T12:00:00-03:00',expected:'2026-10-14T13:00:00-03:00'}]});
+  assert.equal(app.tones,6);
+  assert.match(app.nodes.alerts.children[0].textContent,/entrega agendada/);
+  await app.refresh(app.data);assert.equal(app.tones,6);
+  app.nodes['dashboard-content'].change();
+  await app.refresh(app.data);assert.equal(app.nodes['resume-updates'].hidden,false);
+  app.nodes['resume-updates'].click();await app.settle();
+  assert.equal(app.nodes['resume-updates'].hidden,true);
+  assert.match(app.nodes['sync-status'].textContent,/Painel atualizado/);
 });
 test('interação sem aviso não toca; teclado também libera som',async()=>{
   const app=setup();await app.settle();await app.listeners.keydown({target:null});assert.equal(app.tones,0);

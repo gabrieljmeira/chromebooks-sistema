@@ -1,8 +1,18 @@
 const test=require('node:test');const assert=require('node:assert/strict');
-const {pendingAlerts}=require('../static/alerts.js');
+const {pendingAlerts,pendingDeliveries}=require('../static/alerts.js');
 const due=Date.parse('2026-10-13T15:00:00-03:00');
 const loan={id:1,expected:'2026-10-13T15:00:00-03:00',remaining:2};
 test('nenhum alerta antes dos cinco minutos',()=>assert.deepEqual(pendingAlerts([loan],due-300001),[]));
+test('entrega agendada avisa no início e para ao vencer',()=>{
+  const scheduled={id:8,start:'2026-10-13T14:00:00-03:00',expected:loan.expected};
+  const begin=Date.parse(scheduled.start);
+  assert.deepEqual(pendingDeliveries([scheduled],begin-1),[]);
+  assert.equal(pendingDeliveries([scheduled],begin)[0].phase,'delivery');
+  assert.equal(pendingDeliveries([scheduled],begin)[0].key,pendingDeliveries([scheduled],begin+1000)[0].key);
+  assert.deepEqual(pendingDeliveries([scheduled],due),[]);
+  assert.notEqual(pendingDeliveries([scheduled],begin)[0].key,pendingDeliveries([{...scheduled,start:'2026-10-13T13:00:00-03:00'}],begin)[0].key);
+  assert.deepEqual(pendingDeliveries([{...scheduled,start:'invalido'}],begin),[]);
+});
 test('alerta aos cinco minutos',()=>assert.equal(pendingAlerts([loan],due-300000)[0].phase,'soon'));
 test('alerta no prazo',()=>assert.equal(pendingAlerts([loan],due)[0].phase,'due'));
 test('atrasado usa somente alerta do prazo',()=>assert.equal(pendingAlerts([loan],due+600000)[0].phase,'due'));

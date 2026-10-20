@@ -20,3 +20,10 @@ Os prompts antigos descreviam atribuição automática e foram substituídos pel
 15. Preservar início solicitado e horário real de entrega em campos distintos. Não renomear salas antigas nem reescrever horários sem evidência.
 16. Histórico usa filtros no servidor sobre todo o banco e paginação de 50 registros. Preservar acesso às conferências legadas.
 17. Manter a melhoria visual leve: sala e prazos em destaque, contador da seleção, estados claros e layouts móveis. Não substituir o projeto por outro framework.
+18. Manutenção por código reduz a capacidade real das reservas e remove o aparelho dos seletores. Aparelhos em uso exigem recebimento antes da manutenção. Não apagar reservas existentes quando o estoque diminuir; destacar conflitos.
+19. Edição de pendentes, prorrogação e correção exigem justificativa, auditoria antes/depois, transação e revalidação de sala/estoque/códigos. Preservar o histórico original e os horários de entrega. Correção não representa troca física.
+20. Avisar no início de uma entrega agendada pendente válida, deduplicando por pedido/horário. Preservar avisos de novo pedido, pré-devolução e prazo. O botão de retomar atualização descarta apenas formulários locais.
+21. Contas individuais possuem gestor/técnico. A primeira conta encerra o acesso compartilhado; não reativá-lo implicitamente. Não desativar/rebaixar o último gestor ativo. Alterações de senha/perfil/situação invalidam sessões.
+22. CSV usa todos os resultados dos filtros e neutraliza fórmulas. Backup completo exige gestor; não confundir relatório com backup. Nunca expor hashes em telas ou auditoria.
+23. Backups e restauração estão em `OPERACAO.md`. Restauração automática somente em arquivo local novo, validando integridade e chaves estrangeiras. Não sobrescrever produção. Não afirmar que agendamento/backup no provedor foi configurado sem verificação real.
+24. Diagnóstico público informa disponibilidade sem credenciais; falhas de configuração/conexão retornam 503. Não repetir automaticamente escritas cuja confirmação falhou.
