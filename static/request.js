@@ -24,8 +24,27 @@ updateKind();
   const room = document.getElementById('room');
   const end = document.getElementById('expected_return');
   const status = document.getElementById('room-status');
+  const quantity = document.getElementById('quantity');
+  const quantityStatus = document.getElementById('quantity-status');
+  const availability = document.getElementById('device-availability');
+  const summary = document.getElementById('availability-summary');
+  const detail = document.getElementById('availability-detail');
   const options = [...room.options].filter(option => option.value);
-  let controller, version = 0, timer, busy = new Set(), checked = false;
+  let controller, version = 0, timer, busy = new Set(), checked = false, available = null;
+  function showAvailability(title, description, state = '') {
+    summary.textContent = title; detail.textContent = description;
+    availability.dataset.state = state;
+  }
+  function showQuantity() {
+    const exceeds = available !== null && Number(quantity.value) > available;
+    const message = exceeds ? available === 0
+      ? 'Nenhum Chromebook disponível. Escolha outro período.'
+      : `Escolha no máximo ${available} ${available === 1 ? 'Chromebook' : 'Chromebooks'} ou altere o período.` : '';
+    quantity.setCustomValidity(message);
+    quantity.setAttribute('aria-invalid', String(exceeds));
+    quantityStatus.textContent = message; quantityStatus.hidden = !exceeds;
+    quantityStatus.className = exceeds ? 'hint danger-text' : 'hint';
+  }
   function showSelection() {
     const occupied = checked && busy.has(room.value);
     room.setCustomValidity(occupied ? 'SALA EM USO: escolha outra sala ou outro horário.' : '');
@@ -38,25 +57,48 @@ updateKind();
     }
   }
   function reset() {
-    checked = false; busy = new Set();
+    checked = false; busy = new Set(); available = null;
     for (const option of options) { option.disabled = false; option.textContent = `Sala ${option.value}`; }
+    for (const option of quantity.options) option.disabled = false;
+    showQuantity();
     room.setCustomValidity(''); room.setAttribute('aria-invalid', 'false'); status.className = 'hint';
   }
   async function check() {
     const currentVersion = ++version;
     controller?.abort();
-    reset();
+    const refreshing = checked;
+    if (!refreshing) reset();
     if (!end.value || !end.checkValidity() || (kind.value === 'scheduled' && (!start.value || !start.checkValidity()))) {
+      reset();
+      showAvailability('Disponibilidade de Chromebooks', 'Informe os horários para ver quantos estão disponíveis.');
       status.textContent = 'Informe os horários para consultar as salas disponíveis.'; return;
     }
     controller = new AbortController();
-    status.textContent = 'Consultando disponibilidade das salas…';
+    if (!refreshing) {
+      showAvailability('Consultando disponibilidade…', 'Verificando os Chromebooks para o período informado.');
+      status.textContent = 'Consultando disponibilidade das salas…';
+    }
     const params = new URLSearchParams({kind: kind.value, start_time: start.value, expected_return: end.value});
     try {
       const response = await fetch(`${form.dataset.availabilityUrl}?${params}`, {cache:'no-store', signal:controller.signal});
       const data = await response.json();
       if (currentVersion !== version) return;
-      if (!response.ok) { status.textContent = data.error || 'Confira os horários informados.'; return; }
+      if (!response.ok) {
+        reset();
+        const message = data.error || 'Confira os horários informados.';
+        showAvailability('Disponibilidade não confirmada', message, 'error');
+        status.textContent = message; return;
+      }
+      if (!Number.isInteger(data.available) || data.available < 0 || data.available > 20 || !Array.isArray(data.busy)) {
+        throw new Error('Resposta de disponibilidade inválida');
+      }
+      available = data.available;
+      showAvailability(available === 0 ? 'Nenhum Chromebook disponível' :
+        `${available} ${available === 1 ? 'Chromebook disponível' : 'Chromebooks disponíveis'}`,
+        available === 0 ? 'Escolha outro período para fazer o pedido.' : 'Para todo o período informado. Confirmado ao enviar.',
+        available === 0 ? 'empty' : '');
+      for (const option of quantity.options) option.disabled = Number(option.value) > available;
+      showQuantity();
       busy = new Set(data.busy); checked = true;
       for (const option of options) {
         const occupied = busy.has(option.value);
@@ -66,17 +108,21 @@ updateKind();
       showSelection();
     } catch (error) {
       if (currentVersion !== version || error.name === 'AbortError') return;
+      reset();
+      showAvailability('Consulta indisponível', 'A quantidade será conferida ao enviar o pedido.', 'error');
       status.textContent = 'Consulta indisponível. A sala será conferida ao enviar o pedido.';
     }
   }
   function schedule() {
     // Invalida imediatamente a resposta anterior, inclusive durante o debounce.
     version++; controller?.abort(); clearTimeout(timer); reset();
+    showAvailability('Atualizando disponibilidade…', 'Conferindo o novo período informado.');
     status.textContent = 'Atualizando o intervalo…';
     timer = setTimeout(check, 250);
   }
   for (const field of [kind, start, end]) field.addEventListener('input', schedule);
   room.addEventListener('change', showSelection);
+  quantity.addEventListener('change', showQuantity);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
   setInterval(() => { if (!document.hidden) check(); }, 30000);
   check();

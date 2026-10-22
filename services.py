@@ -193,8 +193,9 @@ def room_availability(kind, start, expected):
     db = connect()
     try:
         occupied = busy_rooms(db, begin, end, current)
+        available = max(0, capacity(db, begin, end, current))
         return {"busy": [room for room in ROOMS if room in occupied],
-                "start": stamp(begin), "end": stamp(end)}
+                "available": available, "start": stamp(begin), "end": stamp(end)}
     finally:
         db.close()
 

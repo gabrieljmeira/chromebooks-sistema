@@ -139,11 +139,50 @@ def test_availability_private_details_never_exposed(client):
     response = client.get('/salas/disponibilidade?kind=scheduled&start_time=11:30&expected_return=12:30')
     assert response.status_code == 200
     assert response.json['busy'] == ['210']
-    assert set(response.json) == {'busy','start','end'}
+    assert response.json['available'] == 19
+    assert set(response.json) == {'busy','available','start','end'}
     assert 'Professor' not in response.get_data(as_text=True)
     assert 'no-store' in response.headers['Cache-Control']
     assert client.get('/salas/disponibilidade?expected_return=25:00').status_code == 422
     assert client.get('/salas/disponibilidade?kind=scheduled&start_time=12:00&expected_return=13:00').json['busy'] == []
+
+
+def test_availability_uses_peak_reservations_and_maintenance(client):
+    import management
+    ask(room='101', start='11:00', end='12:00', qty=12)
+    ask(room='103', start='12:00', end='13:00', qty=10)
+    management.set_unavailable('CH-020', True, 'Bateria em manutenção', token())
+    response = client.get('/salas/disponibilidade?kind=scheduled&start_time=10:30&expected_return=13:00')
+    assert response.json['available'] == 7  # Pico de 12, não a soma dos dois pedidos.
+    assert client.get('/salas/disponibilidade?kind=scheduled&start_time=12:00&expected_return=13:00').json['available'] == 9
+    assert client.get('/salas/disponibilidade?kind=now&expected_return=10:30').json['available'] == 19
+
+
+def test_availability_overdue_partial_return_and_shortage(client, monkeypatch):
+    import management
+    loan = ask(room='101', kind='now', end='11:00', qty=2)
+    s.deliver_loan(loan, ['CH-001', 'CH-002'], token())
+    ask(room='103', start='12:00', end='13:00', qty=18)
+    management.set_unavailable('CH-020', True, 'Bateria em manutenção', token())
+    moment = s.now().replace(hour=11)
+    monkeypatch.setattr(s, 'now', lambda: moment)
+    url = '/salas/disponibilidade?kind=scheduled&start_time=12:00&expected_return=13:00'
+    assert client.get(url).json['available'] == 0  # Não exibe estoque negativo.
+    s.return_loan(loan, ['CH-001'], token())
+    assert client.get(url).json['available'] == 0
+    s.return_loan(loan, ['CH-002'], token())
+    assert client.get(url).json['available'] == 1
+
+
+def test_availability_unknown_inventory_is_not_reported_as_free(client):
+    loan = ask(room='101', kind='now')
+    s.deliver_loan(loan, ['CH-001'], token())
+    db = connect()
+    db.execute('UPDATE loans SET needs_review=1 WHERE id=?', (loan,))
+    db.close()
+    response = client.get('/salas/disponibilidade?kind=now&expected_return=11:00')
+    assert response.status_code == 422
+    assert 'available' not in response.json
 
 
 def test_public_form_lists_rooms_and_rejects_conflict_without_js(client):
