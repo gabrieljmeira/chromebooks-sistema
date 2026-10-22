@@ -227,7 +227,7 @@ def retirada():
 
 @app.get("/salas/disponibilidade")
 def room_availability():
-    # Consulta pública retorna apenas salas ocupadas, sem nomes ou códigos de pedidos.
+    # Consulta pública retorna salas ocupadas e capacidade, sem dados dos professores.
     try:
         return jsonify(services.room_availability(
             request.args.get("kind", "now"), request.args.get("start_time"),
