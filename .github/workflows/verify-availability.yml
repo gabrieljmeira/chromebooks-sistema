@@ -21,7 +21,14 @@ jobs:
       - name: Conferir disponibilidade e fluxo de empréstimo
         env:
           PYTHON_BIN: ${{ github.workspace }}/.venv/bin/python
+          SCREENSHOT_DIR: ${{ runner.temp }}/chromebooks-shots
           NODE_PATH: ${{ runner.temp }}/chromebooks-browser/node_modules
         run: |
           node tests/browser/availability.cjs
           node tests/browser/smoke.cjs
+      - name: Registrar telas de teste
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: disponibilidade-telas
+          path: ${{ runner.temp }}/chromebooks-shots
+          retention-days: 3
