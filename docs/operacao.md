@@ -18,6 +18,7 @@ Quem já administra as credenciais do banco pode recuperar uma conta com `python
 
 ## Empréstimos e manutenção
 
+- **Selecionar disponíveis:** na entrega, o botão seleciona a quantidade do pedido em ordem numérica, pulando os aparelhos em uso ou manutenção. Substitui as marcações anteriores e permite ajuste manual. Se faltar estoque, fica desabilitado e informa a quantidade disponível. Confira os códigos físicos e clique em **Registrar entrega** para concluir; a seleção por si só não registra a movimentação.
 - **Aparelhos:** marque um código como indisponível com justificativa. Ele sai dos seletores de entrega e reduz a capacidade dos intervalos futuros. Um aparelho emprestado precisa ser recebido antes de entrar em manutenção. Liberar também exige motivo. A auditoria guarda as alterações; as últimas 50 aparecem nesta tela.
 - Reservas antigas não são apagadas quando um defeito reduz o estoque. O painel identifica pedidos cuja capacidade ficou insuficiente; a TI ajusta os pedidos ou aguarda a liberação física dos aparelhos.
 - **Editar pedido:** disponível antes da entrega, para professor, sala, quantidade e horários de hoje. O início original já passado pode ser mantido, mas não alterado para outro horário passado. Registros de outro dia devem ser cancelados e refeitos. A edição verifica sala e capacidade na mesma transação e guarda antes/depois e motivo.
