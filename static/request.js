@@ -66,20 +66,25 @@ updateKind();
   async function check() {
     const currentVersion = ++version;
     controller?.abort();
-    reset();
+    const refreshing = checked;
+    if (!refreshing) reset();
     if (!end.value || !end.checkValidity() || (kind.value === 'scheduled' && (!start.value || !start.checkValidity()))) {
+      reset();
       showAvailability('Disponibilidade de Chromebooks', 'Informe os horários para ver quantos estão disponíveis.');
       status.textContent = 'Informe os horários para consultar as salas disponíveis.'; return;
     }
     controller = new AbortController();
-    showAvailability('Consultando disponibilidade…', 'Verificando os Chromebooks para o período informado.');
-    status.textContent = 'Consultando disponibilidade das salas…';
+    if (!refreshing) {
+      showAvailability('Consultando disponibilidade…', 'Verificando os Chromebooks para o período informado.');
+      status.textContent = 'Consultando disponibilidade das salas…';
+    }
     const params = new URLSearchParams({kind: kind.value, start_time: start.value, expected_return: end.value});
     try {
       const response = await fetch(`${form.dataset.availabilityUrl}?${params}`, {cache:'no-store', signal:controller.signal});
       const data = await response.json();
       if (currentVersion !== version) return;
       if (!response.ok) {
+        reset();
         const message = data.error || 'Confira os horários informados.';
         showAvailability('Disponibilidade não confirmada', message, 'error');
         status.textContent = message; return;
@@ -103,6 +108,7 @@ updateKind();
       showSelection();
     } catch (error) {
       if (currentVersion !== version || error.name === 'AbortError') return;
+      reset();
       showAvailability('Consulta indisponível', 'A quantidade será conferida ao enviar o pedido.', 'error');
       status.textContent = 'Consulta indisponível. A sala será conferida ao enviar o pedido.';
     }
