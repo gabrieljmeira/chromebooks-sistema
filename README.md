@@ -19,7 +19,7 @@ Os pedidos são feitos para o mesmo dia, com horários no fuso **Brasília**.
 | --- | --- |
 | Solicitações dos professores | Pedidos imediatos e agendados, seleção de sala, quantidade e período de uso |
 | Painel da TI | Acompanhamento dos pedidos, entrega por código, devoluções parciais e controle de atrasos |
-| Disponibilidade | Verificação de conflitos por sala, capacidade por período e exclusão de equipamentos em manutenção |
+| Disponibilidade | Quantidade disponível exibida no formulário conforme o período, verificação de conflitos por sala e exclusão de equipamentos em manutenção |
 | Ajustes operacionais | Edição de pedidos pendentes, prorrogação de uso e correções com motivo e registro de auditoria |
 | Alertas | Avisos sonoros de novos pedidos, entregas agendadas e devoluções próximas ou vencidas |
 | Histórico | Consulta por protocolo, professor, sala, data e situação; exportação dos resultados em CSV |
