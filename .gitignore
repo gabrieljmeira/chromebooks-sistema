@@ -1,7 +1,12 @@
 .env
+.env.*
 .venv/
+venv/
 __pycache__/
+*.py[cod]
 .pytest_cache/
+.coverage
+htmlcov/
 instance/
 *.db
 *.sqlite
@@ -9,3 +14,8 @@ instance/
 .vercel/
 backups/
 *.backup.json
+node_modules/
+test-results/
+playwright-report/
+.DS_Store
+Thumbs.db

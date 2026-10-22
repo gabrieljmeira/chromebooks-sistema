@@ -1,10 +1,10 @@
 # Operação da TI
 
-## Publicação desta versão
+## Banco e atualização
 
 As tabelas adicionais de manutenção, contas e auditoria administrativa são criadas em uma transação na primeira conexão de cada instância. São apenas `CREATE TABLE IF NOT EXISTS`: não se apagam ou reescrevem empréstimos existentes. O esquema básico anterior continua obrigatório. Faça uma cópia do banco antes de publicar; um rollback do código anterior pode ignorar as indisponibilidades cadastradas nesta versão e deve ser acompanhado pela TI.
 
-Na Vercel, configure `SECRET_KEY`, `ADMIN_PASSWORD_HASH`, `TURSO_DATABASE_URL` e `TURSO_AUTH_TOKEN` para Production. As URLs `turso://`, `libsql://` e `https://` são aceitas. Alterar uma variável exige novo deploy. `LOCAL_DB_PATH` vale somente para execução local. Não use SQLite temporário como banco de produção.
+Na Vercel, configure `SECRET_KEY`, `ADMIN_PASSWORD_HASH`, `TURSO_DATABASE_URL` e `TURSO_AUTH_TOKEN` para Production. As URLs `turso://`, `libsql://` e `https://` são aceitas. Alterar uma variável exige novo deploy. `LOCAL_DB_PATH` vale somente para execução local. Consulte [Instalação](instalacao.md) para configurar um ambiente novo.
 
 Valide `/saude` (200, `{"status":"ok"}`), faça login e confira **Sistema**. Falhas de configuração/conexão retornam 503 com orientação, sem mostrar credenciais. O comando `python scripts/check_config.py` confere o ambiente local configurado no `.env`, sem imprimir valores; ele não lê automaticamente as variáveis da Vercel.
 
@@ -42,21 +42,21 @@ Também é possível usar, com as credenciais do banco correto em um `.env` loca
 
 ```bat
 python -m pip install -r requirements.txt
-python scripts/backup_db.py --directory "D:\BackupsChromebooks"
+python scripts/backup_db.py --directory backups
 ```
 
 O programa cria um arquivo novo com data/hora e nunca sobrescreve uma cópia. Código de saída 0 indica sucesso; 1 indica falha. Em sistemas que suportam permissões POSIX, o arquivo é criado com modo 0600; no Windows restrinja o acesso à pasta pela TI.
 
-Para programar diariamente no Windows, use o **Agendador de Tarefas** no computador da TI: ação **Iniciar um programa**, programa igual ao caminho completo de `python.exe` usado no projeto e argumentos iguais ao caminho completo de `scripts\backup_db.py` seguido de `--directory "D:\BackupsChromebooks"`. Coloque aspas nos caminhos com espaços. O script encontra o `.env` pela pasta do projeto. Configure o horário de execução, monitore **Último Resultado = 0x0** e teste a execução manual da tarefa. O computador precisa estar ligado e com rede; se isso não for viável, hospede o agendamento em infraestrutura que permaneça disponível.
+Para programar diariamente no Windows, use o **Agendador de Tarefas** no computador da TI. Na ação **Iniciar um programa**, informe o caminho completo de `python.exe` usado no projeto. Nos argumentos, informe o caminho completo de `scripts\backup_db.py` e a opção `--directory` com o diretório de cópias escolhido. Coloque aspas nos caminhos com espaços. O script encontra o `.env` pela pasta do projeto. Configure o horário, confira **Último Resultado = 0x0** e teste a execução manual. O computador precisa estar ligado e com rede.
 
-Esse agendamento não é ativado pela publicação do site. A conexão atual deste assistente não permite conferir políticas/retencão de backups da conta Turso nem cadastrar a tarefa no computador da TI. Confira também as cópias disponibilizadas pelo provedor.
+O agendamento é configurado separadamente da publicação do site. Confira também a retenção e a recuperação das cópias disponibilizadas pelo Turso.
 
 ## Recuperação validada
 
-Teste periodicamente uma cópia em um **arquivo novo**, sem tocar no banco em produção:
+Teste periodicamente uma cópia em um **arquivo novo**, sem tocar no banco em produção. O utilitário recebe dois argumentos: o caminho do backup JSON e o caminho de destino do SQLite. Consulte a interface do comando:
 
 ```bat
-python scripts/restore_backup.py "D:\BackupsChromebooks\ARQUIVO.json" "D:\TesteRestauracao\chromebooks.sqlite"
+python scripts/restore_backup.py --help
 ```
 
 O comando confere formato, tabelas/colunas conhecidas, chaves estrangeiras, integridade SQLite e inventário CH-001 a CH-020. Publica o arquivo somente após essas verificações. Recusa destinos já existentes e backups acima de 100 MB; para volumes maiores, faça restauração assistida. Nenhum SQL vindo do JSON é executado.
