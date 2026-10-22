@@ -1,0 +1,27 @@
+name: Verificar disponibilidade
+on:
+  push:
+    branches: [feat/request-availability]
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Preparar testes
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install -r requirements-dev.txt
+          npm install --prefix "$RUNNER_TEMP/chromebooks-browser" playwright@1.62.1
+          "$RUNNER_TEMP/chromebooks-browser/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Conferir disponibilidade e fluxo de empréstimo
+        env:
+          PYTHON_BIN: ${{ github.workspace }}/.venv/bin/python
+          NODE_PATH: ${{ runner.temp }}/chromebooks-browser/node_modules
+        run: |
+          node tests/browser/availability.cjs
+          node tests/browser/smoke.cjs
