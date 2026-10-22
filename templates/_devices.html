@@ -1,4 +1,11 @@
+{% if quick_select|default(false) %}
+<div class="device-shortcuts" hidden>
+  <button type="button" class="ghost" data-select-available data-selection-blocked="{{ 'true' if selection_blocked else 'false' }}" {% if selection_blocked or devices|length < quick_select %}disabled{% endif %}>Selecionar {{ quick_select }} {{ 'disponível' if quick_select == 1 else 'disponíveis' }}</button>
+  <p class="hint quick-selection-help">Em ordem numérica. Substitui a seleção atual.</p>
+</div>
+<p class="selection-count hint" role="status">Nenhum aparelho selecionado.</p>
+{% endif %}
 <fieldset class="device-picker"><legend>{{ legend }}</legend>
 {% for device in devices %}<label><input type="checkbox" name="devices" value="{{ device.code }}">{{ device.code }}</label>{% else %}<p>Nenhum aparelho disponível nesta lista.</p>{% endfor %}
 </fieldset>
-<p class="selection-count hint" role="status">Nenhum aparelho selecionado.</p>
+{% if not quick_select|default(false) %}<p class="selection-count hint" role="status">Nenhum aparelho selecionado.</p>{% endif %}
