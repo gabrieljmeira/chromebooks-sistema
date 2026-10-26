@@ -14,7 +14,9 @@
     soundStatus.textContent = muted ? 'Som silenciado. Os avisos visuais continuam ativos.' : audio?.state === 'running'
       ? 'Som dos avisos ativado.' : 'Clique no painel para liberar o som dos avisos.';
     if (soundToggle) {
-      soundToggle.textContent = muted || audio?.state !== 'running' ? 'Ativar som' : 'Silenciar som';
+      soundToggle.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z"/>' + (muted || audio?.state !== 'running' ? '<path d="m17 9 5 6m0-6-5 6"/>' : '<path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>') + '</svg>';
+      soundToggle.setAttribute('aria-label', muted || audio?.state !== 'running' ? 'Ativar som' : 'Silenciar som');
+      soundToggle.setAttribute('title', soundStatus.textContent);
       soundToggle.setAttribute('aria-pressed', String(!muted && audio?.state === 'running'));
     }
   }
@@ -46,6 +48,7 @@
       showSound();
       if (queuedSound && audio.state === 'running') beep();
     } catch {
+      soundStatus.classList?.remove('sr-only');
       soundStatus.textContent = 'Áudio bloqueado. Confira as permissões de som do navegador.';
     }
   }
@@ -71,6 +74,15 @@
     if (typeof clearTimeout === 'function') clearTimeout(timer);
     refresh(true);
   });
+  let selectedTab = 'pending-loans';
+  try {const stored=sessionStorage.getItem('chromebooks:tab');if(['pending-loans','active-loans','scheduled-loans'].includes(stored))selectedTab=stored;}catch{}
+  function updateTabs(){
+    content.querySelectorAll('[role=tab][data-dashboard-tab]').forEach(button=>button.setAttribute('aria-selected',String(button.dataset.dashboardTab===selectedTab)));
+    for(const id of ['pending-loans','active-loans','scheduled-loans']){const panel=document.getElementById(id);if(panel)panel.hidden=id!==selectedTab;}
+  }
+  content.addEventListener('click',event=>{const button=event.target.closest('[data-dashboard-tab]');if(button){selectedTab=button.dataset.dashboardTab;try{sessionStorage.setItem('chromebooks:tab',selectedTab);}catch{}updateTabs();}});
+  content.addEventListener('submit',event=>{if(event.target.action?.includes('/entregar/')){try{sessionStorage.setItem('chromebooks:tab','active-loans');}catch{}}});
+  updateTabs();
   showSound();
   async function claim(key) {
     const storageKey = 'chromebooks:alert:' + key;
@@ -106,6 +118,7 @@
       if (!editing) {
         const opened = [...content.querySelectorAll('details[open][id]')].map(d => d.id);
         content.innerHTML = data.html;
+        updateTabs();
         window.DevicePicker?.initialize(content);
         for (const id of opened) { const detail = document.getElementById(id); if (detail) detail.open = true; }
       } // HTML escapado por Jinja, somente endpoint autenticado.
@@ -114,7 +127,7 @@
         : 'Painel atualizado. Nova consulta em 15 segundos.';
       let shouldRing = false;
       const events = [
-        ...(data.pending || []).map(loan => ({ key: `new:${loan.id}`, id: loan.id, phase: 'new' })),
+        ...(data.pending || []).map(loan => ({ key: `new:${loan.id}`, id: loan.id, phase: 'new', scheduled:loan.scheduled, start:loan.start })),
         ...LoanAlerts.pendingAlerts(data.loans, Date.parse(data.server_time)),
         ...(LoanAlerts.pendingDeliveries?.(data.deliveries, Date.parse(data.server_time)) || []),
       ];
@@ -124,7 +137,7 @@
         message.textContent = event.phase === 'delivery'
           ? `Pedido #${event.id}: chegou o horário de entrega agendada.`
           : event.phase === 'new'
-          ? `Novo pedido #${event.id}: aguardando entrega pela TI.`
+          ? event.scheduled ? `Novo agendamento #${event.id}: entrega em ${event.start}.` : `Novo pedido #${event.id}: aguardando entrega pela TI.`
           : event.phase === 'soon'
           ? `Pedido #${event.id}: devolução prevista em até 5 minutos.`
           : `Pedido #${event.id}: chegou o horário de devolução.`;

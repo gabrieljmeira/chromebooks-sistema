@@ -4,7 +4,7 @@ import hashlib
 import json
 import re
 from contextvars import ContextVar
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 from database import connect, one, rows, transaction
 from rooms import ROOMS
@@ -145,15 +145,24 @@ def capacity(db, start, end, current, exclude=None):
     return 20 - unavailable - peak
 
 
-def requested_interval(kind, start, expected, current):
+def requested_interval(kind, start, expected, current, use_date=None):
     if kind not in ("now", "scheduled"):
         raise ValidationError("Escolha Pedir agora ou Agendar entrega.")
-    end = clock(expected, current)
-    begin = current if kind == "now" else clock(start, current)
+    selected = current.date()
+    if kind == "scheduled" and use_date:
+        try:
+            selected = date.fromisoformat(use_date)
+        except (ValueError, TypeError):
+            raise ValidationError("Informe uma data válida.")
+        if not current.date() <= selected <= current.date() + timedelta(days=2):
+            raise ValidationError("Escolha hoje, amanhã ou depois de amanhã.")
+    reference = current.replace(year=selected.year, month=selected.month, day=selected.day)
+    end = clock(expected, reference)
+    begin = current if kind == "now" else clock(start, reference)
     if kind == "scheduled" and begin <= current:
-        raise ValidationError("Agende a entrega para um horário futuro de hoje.")
+        raise ValidationError("Agende a entrega para um horário futuro.")
     if end <= begin:
-        raise ValidationError("A devolução de hoje deve ser posterior ao início do pedido.")
+        raise ValidationError("A devolução deve ser posterior ao início do pedido.")
     return begin, end
 
 
@@ -187,9 +196,9 @@ def assert_room_available(db, room, begin, end, current, exclude=None):
         )
 
 
-def room_availability(kind, start, expected):
+def room_availability(kind, start, expected, use_date=None):
     current = now()
-    begin, end = requested_interval(kind, start, expected, current)
+    begin, end = requested_interval(kind, start, expected, current, use_date)
     db = connect()
     try:
         occupied = busy_rooms(db, begin, end, current)
@@ -200,7 +209,7 @@ def room_availability(kind, start, expected):
         db.close()
 
 
-def request_loan(name, room, qty, expected, kind="now", start=None, token=None):
+def request_loan(name, room, qty, expected, kind="now", start=None, token=None, use_date=None):
     name = str(name or "").strip()
     room = str(room or "").strip()
     if not 3 <= len(name) <= 100:
@@ -220,13 +229,14 @@ def request_loan(name, room, qty, expected, kind="now", start=None, token=None):
         expected,
         kind,
         start if kind == "scheduled" else None,
+        use_date if kind == "scheduled" else None,
     )
     with transaction() as db:
         previous = repeat(db, token, fingerprint)
         if previous is not None:
             return previous
         current = now()
-        begin, end = requested_interval(kind, start, expected, current)
+        begin, end = requested_interval(kind, start, expected, current, use_date)
         assert_room_available(db, room, begin, end, current)
         if capacity(db, begin, end, current) < qty:
             raise ValidationError(
@@ -508,6 +518,7 @@ def snapshot(history=False, filters=None):
             due = datetime.fromisoformat(loan["expected_return_at"])
             loan["due_soon"] = loan["status"] == "active" and 0 < (due - current).total_seconds() <= 300
             loan["expired"] = loan["status"] == "pending" and due <= current
+            loan["use_date"] = loan["start_at"][:10]
             loan["scheduled_later"] = loan["status"] == "pending" and datetime.fromisoformat(loan["start_at"]) > current
             for field in (
                 "start_at",

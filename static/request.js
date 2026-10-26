@@ -15,6 +15,8 @@ function updateKind() {
   document.getElementById('start-field').hidden = !scheduled;
   start.disabled = !scheduled;
   start.required = scheduled;
+  const date = document.getElementById("use_date");
+  if(!date.value) date.value=date.min; date.disabled=!scheduled; date.required=scheduled;
 }
 kind.addEventListener('change', updateKind);
 updateKind();
@@ -36,6 +38,7 @@ updateKind();
     availability.dataset.state = state;
   }
   function showQuantity() {
+    quantity.max = String(available === null ? 20 : available);
     const exceeds = available !== null && Number(quantity.value) > available;
     const message = exceeds ? available === 0
       ? 'Nenhum Chromebook disponível. Escolha outro período.'
@@ -52,14 +55,14 @@ updateKind();
     if (checked) {
       status.className = occupied ? 'notice error' : 'hint';
       status.textContent = occupied ? 'SALA EM USO — existe outro pedido nesse intervalo ou uma devolução atrasada.'
-        : room.value ? `Sala ${room.value} disponível no intervalo informado. A confirmação ocorre ao enviar.`
+        : room.value ? `Sala ${room.value} disponível no intervalo informado. Conferida novamente ao confirmar o envio.`
         : 'Selecione uma sala disponível para o intervalo informado.';
     }
   }
   function reset() {
     checked = false; busy = new Set(); available = null;
     for (const option of options) { option.disabled = false; option.textContent = `Sala ${option.value}`; }
-    for (const option of quantity.options) option.disabled = false;
+    for (const option of (quantity.options || [])) option.disabled = false;
     showQuantity();
     room.setCustomValidity(''); room.setAttribute('aria-invalid', 'false'); status.className = 'hint';
   }
@@ -78,7 +81,7 @@ updateKind();
       showAvailability('Consultando disponibilidade…', 'Verificando os Chromebooks para o período informado.');
       status.textContent = 'Consultando disponibilidade das salas…';
     }
-    const params = new URLSearchParams({kind: kind.value, start_time: start.value, expected_return: end.value});
+    const params = new URLSearchParams({kind: kind.value, start_time: start.value, expected_return: end.value, use_date: document.getElementById("use_date").value});
     try {
       const response = await fetch(`${form.dataset.availabilityUrl}?${params}`, {cache:'no-store', signal:controller.signal});
       const data = await response.json();
@@ -95,9 +98,9 @@ updateKind();
       available = data.available;
       showAvailability(available === 0 ? 'Nenhum Chromebook disponível' :
         `${available} ${available === 1 ? 'Chromebook disponível' : 'Chromebooks disponíveis'}`,
-        available === 0 ? 'Escolha outro período para fazer o pedido.' : 'Para todo o período informado. Confirmado ao enviar.',
+        available === 0 ? 'Escolha outro período para fazer o pedido.' : 'Para todo o período informado.',
         available === 0 ? 'empty' : '');
-      for (const option of quantity.options) option.disabled = Number(option.value) > available;
+      for (const option of (quantity.options || [])) option.disabled = Number(option.value) > available;
       showQuantity();
       busy = new Set(data.busy); checked = true;
       for (const option of options) {
@@ -120,9 +123,11 @@ updateKind();
     status.textContent = 'Atualizando o intervalo…';
     timer = setTimeout(check, 250);
   }
-  for (const field of [kind, start, end]) field.addEventListener('input', schedule);
+  for (const field of [kind, start, end, document.getElementById("use_date")]) field.addEventListener('input', schedule);
   room.addEventListener('change', showSelection);
   quantity.addEventListener('change', showQuantity);
+  quantity.addEventListener('input', showQuantity);
+  for(const [id,delta] of [['quantity-minus',-1],['quantity-plus',1]]) document.getElementById(id).addEventListener('click',()=>{const next=Number(quantity.value)+delta;const max=available===null?20:available;if(Number.isInteger(next)&&next>=1&&next<=max){quantity.value=next;showQuantity();}});
   document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
   setInterval(() => { if (!document.hidden) check(); }, 30000);
   check();
