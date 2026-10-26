@@ -3,7 +3,6 @@
 {% block content %}
 <section class="panel narrow">
   <h1>Painel da TI</h1>
-  <p class="muted">{{ 'Entre com sua conta da TI.' if individual else 'Digite a senha administrativa para continuar. Depois, crie a primeira conta individual em Contas.' }}</p>
   <form method="post" class="stack">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     {% if individual %}<label for="username">Usuário</label><input id="username" name="username" required maxlength="64" autocomplete="username" autocapitalize="none" spellcheck="false">{% endif %}
