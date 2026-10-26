@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Seu pedido{% endblock %}
+{% block content %}
+<section class="panel narrow"><h1>Seu pedido</h1>
+<dl class="review-summary">
+<div><dt>Professor</dt><dd>{{ request.form.get('name') }}</dd></div>
+<div><dt>Sala</dt><dd>{{ request.form.get('room') }}</dd></div>
+<div><dt>Quantidade</dt><dd>{{ request.form.get('quantity') }} Chromebooks</dd></div>
+<div><dt>Data</dt><dd>{{ availability.start[8:10] }}/{{ availability.start[5:7] }}/{{ availability.start[:4] }}</dd></div>
+<div><dt>Entrega</dt><dd>{{ 'Assim que possível' if request.form.get('kind')=='now' else availability.start[11:16] }}</dd></div>
+<div><dt>Devolução</dt><dd>{{ availability.end[11:16] }}</dd></div>
+</dl>
+<form method="post" action="{{ url_for('retirada') }}" class="review-actions">
+{% for field in ('csrf','operation','name','room','quantity','kind','start_time','expected_return','use_date','website') %}<input type="hidden" name="{{ field }}" value="{{ request.form.get(field,'') }}">{% endfor %}
+<button class="primary">Confirmar envio</button>
+<button class="ghost" name="edit" value="1" formaction="{{ url_for('review_request') }}">Voltar e editar</button>
+</form></section>
+{% endblock %}

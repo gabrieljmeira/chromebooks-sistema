@@ -1,7 +1,7 @@
 {% extends 'base.html' %}{% block title %}Painel da TI{% endblock %}
 {% block content %}
 <div class="heading"><div><p class="eyebrow">ENTREGAS E DEVOLUÇÕES</p><h1>Painel da TI</h1><p class="muted">Confira a sala, selecione os aparelhos e registre a movimentação.</p></div><a class="ghost" href="{{ url_for('admin_history') }}">Ver histórico</a></div>
-<div class="toolbar panel"><button type="button" class="ghost" id="sound-toggle" aria-pressed="false">Ativar som</button><span id="sound-status" role="status">Clique no painel para liberar o som dos avisos.</span><button type="button" class="ghost" id="resume-updates" hidden>Descartar seleção e atualizar</button><span id="sync-status" role="status">Atualização automática a cada 15 segundos.</span></div>
+<div class="toolbar panel"><button type="button" class="ghost" id="sound-toggle" aria-pressed="false">Ativar som</button><span id="sound-status" class="sr-only" role="status">Clique no painel para liberar o som dos avisos.</span><button type="button" class="ghost" id="resume-updates" hidden>Descartar seleção e atualizar</button><span id="sync-status" role="status">Atualização automática a cada 15 segundos.</span></div>
 <div id="alerts" aria-live="polite"></div>
 <div id="dashboard-content">{% include '_dashboard.html' %}</div>
 <script src="{{ url_for('static',filename='alerts.js') }}" defer></script>

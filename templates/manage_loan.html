@@ -6,9 +6,9 @@
 <label for="name">Professor</label><input name="name" id="name" required minlength="3" maxlength="100" value="{{ request.form.get('name',loan.professor_name) }}">
 <label for="room">Sala</label><select name="room" id="room" required>{% for room in rooms %}<option value="{{ room }}" {% if request.form.get('room',loan.room)==room %}selected{% endif %}>Sala {{ room }}</option>{% endfor %}</select>
 <label for="quantity">Quantidade</label><select name="quantity" id="quantity">{% for n in range(1,21) %}<option value="{{ n }}" {% if request.form.get('quantity',loan.quantity)|int==n %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
-<label for="start_time">Início solicitado — hoje</label><input name="start_time" id="start_time" type="time" required value="{{ request.form.get('start_time',loan.start_at[11:16]) }}">
+<label for="use_date">Data de uso</label><input id="use_date" name="use_date" type="date" min="{{ schedule_today }}" max="{{ schedule_last }}" required value="{{ request.form.get('use_date',loan.start_at[:10]) }}"><label for="start_time">Início solicitado</label><input name="start_time" id="start_time" type="time" required value="{{ request.form.get('start_time',loan.start_at[11:16]) }}">
 {% endif %}
-{% if action in ('editar','prorrogar') %}<label for="expected_return">Devolução prevista — hoje</label><input name="expected_return" id="expected_return" type="time" required value="{{ request.form.get('expected_return',loan.expected_return_at[11:16]) }}">{% endif %}
+{% if action in ('editar','prorrogar') %}<label for="expected_return">Devolução prevista</label><input name="expected_return" id="expected_return" type="time" required value="{{ request.form.get('expected_return',loan.expected_return_at[11:16]) }}">{% endif %}
 {% if action == 'corrigir' %}
 <p class="notice warning">Use somente para corrigir um registro incorreto. Uma troca física deve ser registrada como devolução e uma nova entrega. Os valores anteriores serão preservados na auditoria.</p>
 <label for="allocation_id">Registro a corrigir</label><select id="allocation_id" name="allocation_id" required>{% for item in allocations %}<option value="{{ item.id }}" {% if request.form.get('allocation_id')==item.id|string %}selected{% endif %}>{{ item.code }} · {{ 'Devolvido' if item.returned_at else 'Em uso' }}</option>{% endfor %}</select>

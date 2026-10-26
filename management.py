@@ -65,12 +65,12 @@ def set_unavailable(code, unavailable, explanation, token):
         audit(db, "manutencao", {"code": code, "before": previous, "unavailable": unavailable, "reason": explanation}, token, fingerprint)
 
 
-def edit_pending(loan_id, name, room, qty, start, expected, explanation, token):
+def edit_pending(loan_id, name, room, qty, start, expected, explanation, token, use_date=None):
     name, room = str(name or "").strip(), str(room or "").strip()
     qty, explanation = s.quantity(qty), reason(explanation)
     if not 3 <= len(name) <= 100 or room not in ROOMS:
         raise s.ValidationError("Informe o professor e uma sala da lista.")
-    fingerprint = s.payload("edit", loan_id, name, room, qty, start, expected, explanation)
+    fingerprint = s.payload("edit", loan_id, name, room, qty, start, expected, explanation, use_date)
     with transaction() as db:
         if s.repeat(db, token, fingerprint) is not None:
             return
@@ -79,13 +79,23 @@ def edit_pending(loan_id, name, room, qty, start, expected, explanation, token):
             raise s.ValidationError("Somente pedidos ainda não entregues podem ser editados.")
         current = s.now()
         # Manter o início solicitado já passado é permitido; não recria o pedido.
-        begin, end = s.clock(start, current), s.clock(expected, current)
+        reference = current
+        if use_date:
+            from datetime import date, timedelta
+            try:
+                selected = date.fromisoformat(use_date)
+            except (ValueError, TypeError):
+                raise s.ValidationError("Informe uma data válida.")
+            if not current.date() <= selected <= current.date() + timedelta(days=2):
+                raise s.ValidationError("Escolha hoje, amanhã ou depois de amanhã.")
+            reference = current.replace(year=selected.year, month=selected.month, day=selected.day)
+        begin, end = s.clock(start, reference), s.clock(expected, reference)
         original = datetime.fromisoformat(loan["start_at"])
-        if original.date() != current.date():
+        if not use_date and original.date() != current.date():
             raise s.ValidationError("O pedido é de outro dia. Cancele-o e registre um novo pedido.")
-        if begin < current and begin.strftime("%H:%M") != original.strftime("%H:%M"):
+        if begin < current and begin.replace(second=0,microsecond=0) != original.replace(second=0,microsecond=0):
             raise s.ValidationError("Para alterar o início, escolha um horário futuro de hoje.")
-        if begin.strftime("%H:%M") == original.strftime("%H:%M"):
+        if begin.replace(second=0,microsecond=0) == original.replace(second=0,microsecond=0):
             begin = original
         if end <= max(begin, current):
             raise s.ValidationError("A devolução deve ser posterior ao início e ao horário atual.")

@@ -4,7 +4,7 @@
 <section class="panel narrow">
   <h1>Pedir Chromebooks</h1>
   <p class="muted">Faça o pedido. A TI entrega os aparelhos na sala informada.</p>
-  <form method="post" class="stack" id="request-form" data-availability-url="{{ url_for('room_availability') }}">
+  <form method="post" action="{{ url_for('review_request') }}" class="stack" id="request-form" data-availability-url="{{ url_for('room_availability') }}">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     <input type="hidden" name="operation" value="{{ request.form.get('operation') or form_token('request') }}">
     <div class="honeypot" aria-hidden="true"><label for="website">Não preencha</label><input id="website" name="website" tabindex="-1" autocomplete="off"></div>
@@ -13,17 +13,18 @@
     <label for="kind">Tipo de pedido</label>
     <select id="kind" name="kind"><option value="now">Pedir agora</option><option value="scheduled" {% if request.form.get('kind')=='scheduled' %}selected{% endif %}>Agendar entrega</option></select>
     <div id="start-field" class="stack">
-      <label for="start_time">Horário da entrega — hoje</label>
+<label for="use_date">Data de uso</label><input type="date" name="use_date" id="use_date" min="{{ schedule_today }}" max="{{ schedule_last }}" value="{{ request.form.get('use_date',schedule_today) }}">
+      <label for="start_time">Horário da entrega</label>
       <input id="start_time" name="start_time" type="text" inputmode="numeric" pattern="([01][0-9]|2[0-3]):?[0-5][0-9]" maxlength="5" placeholder="14:00" value="{{ request.form.get('start_time','') }}">
     </div>
-    <label for="expected_return">Horário previsto de devolução — hoje</label>
+    <label for="expected_return">Horário previsto de devolução</label>
     <input id="expected_return" name="expected_return" type="text" inputmode="numeric" pattern="([01][0-9]|2[0-3]):?[0-5][0-9]" maxlength="5" placeholder="14:30" value="{{ request.form.get('expected_return','') }}" required>
     <div id="device-availability" class="request-availability" role="status" aria-atomic="true">
       <strong id="availability-summary">Disponibilidade de Chromebooks</strong>
       <span id="availability-detail">Informe os horários para ver quantos estão disponíveis.</span>
     </div>
     <label for="quantity">Quantidade</label>
-    <select id="quantity" name="quantity" required aria-describedby="device-availability quantity-status">{% for i in range(1,21) %}<option value="{{ i }}" {% if request.form.get('quantity') == i|string %}selected{% endif %}>{{ i }}</option>{% endfor %}</select>
+    <div class="quantity-control"><button type="button" id="quantity-minus" aria-label="Diminuir quantidade">−</button><input type="number" id="quantity" name="quantity" min="1" max="20" required value="{{ request.form.get('quantity',1) }}" aria-describedby="device-availability quantity-status"><button type="button" id="quantity-plus" aria-label="Aumentar quantidade">+</button></div>
     <p id="quantity-status" class="hint" hidden></p>
     <label for="room">Sala de uso</label>
     <select id="room" name="room" required aria-describedby="room-status">

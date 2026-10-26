@@ -6,12 +6,12 @@ O inventário contempla **20 Chromebooks, de CH-001 a CH-020**. A entrega é rea
 
 ## Como funciona
 
-1. **Solicitação:** o professor informa nome, sala, quantidade e horário de devolução. Em **Pedir agora**, o início é imediato; em **Agendar entrega**, também informa o horário em que precisará dos equipamentos.
+1. **Solicitação:** o professor informa nome, sala, quantidade e horário de devolução. Em **Pedir agora**, o início é imediato; em **Agendar entrega**, também informa a data e o horário em que precisará dos equipamentos. Antes do envio, confere o resumo e confirma o pedido.
 2. **Disponibilidade:** o sistema verifica a ocupação da sala e a capacidade do inventário no intervalo solicitado.
 3. **Entrega:** a TI atende o pedido e registra os códigos dos Chromebooks efetivamente entregues.
 4. **Devolução:** a TI confere os equipamentos recebidos e registra a devolução parcial ou completa. O histórico preserva a movimentação.
 
-Os pedidos são feitos para o mesmo dia, com horários no fuso **Brasília**.
+Os agendamentos podem ser feitos para **hoje, amanhã ou depois de amanhã**, com horários no fuso **Brasília**. A entrega e a devolução acontecem na mesma data.
 
 ## Recursos
 

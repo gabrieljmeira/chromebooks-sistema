@@ -129,6 +129,36 @@ def operation(scope):
 app.jinja_env.globals.update(csrf_token=csrf_token, form_token=form_token, rooms=ROOMS, is_manager=is_manager)
 
 
+@app.context_processor
+def scheduling_dates():
+    from datetime import timedelta
+    today = services.now().date()
+    return {"schedule_today": today.isoformat(), "schedule_last": (today + timedelta(days=2)).isoformat()}
+
+
+@app.post("/retirada/revisar")
+def review_request():
+    limit("reviews", 60)
+    operation("request")
+    if request.form.get("website"):
+        return render_template("success.html", request_id=None)
+    if request.form.get("edit"):
+        return render_template("request.html")
+    try:
+        name = request.form.get("name", "").strip()
+        room = request.form.get("room", "")
+        amount = services.quantity(request.form.get("quantity"))
+        if not 3 <= len(name) <= 100 or room not in ROOMS:
+            raise services.ValidationError("Confira o nome do professor e a sala.")
+        availability = services.room_availability(request.form.get("kind"), request.form.get("start_time"), request.form.get("expected_return"), request.form.get("use_date"))
+        if room in availability["busy"] or amount > availability["available"]:
+            raise services.ValidationError("Sala ou quantidade indisponível neste período. Confira o pedido.")
+        return render_template("review_request.html", availability=availability)
+    except services.ValidationError as exc:
+        flash(str(exc), "error")
+        return render_template("request.html"), 422
+
+
 @app.before_request
 def protect_post():
     g.actor_token = services.actor.set(session.get("username", "TI (senha compartilhada)") if session.get("admin") else "Professor (formulário)")
@@ -217,6 +247,7 @@ def retirada():
                 request.form.get("kind"),
                 request.form.get("start_time"),
                 token,
+                use_date=request.form.get("use_date"),
             )
             return redirect(url_for("success", request_id=loan_id), 303)
         except services.ValidationError as exc:
@@ -231,7 +262,7 @@ def room_availability():
     try:
         return jsonify(services.room_availability(
             request.args.get("kind", "now"), request.args.get("start_time"),
-            request.args.get("expected_return"),
+            request.args.get("expected_return"), request.args.get("use_date"),
         ))
     except services.ValidationError as exc:
         return jsonify(error=str(exc)), 422
@@ -311,7 +342,7 @@ def admin_state():
         html=render_template("_dashboard.html", data=data),
         loans=alerts,
         server_time=data["server_time"],
-        pending=[{"id": loan["id"]} for loan in data["pending"]],
+        pending=[{"id": loan["id"], "scheduled": loan["scheduled_later"], "start": loan["start_at_label"]} for loan in data["pending"]],
         deliveries=[{"id": loan["id"], "start": loan["start_at"], "expected": loan["expected_return_at"]} for loan in data["pending"] if loan["kind"] == "scheduled" and not loan["expired"]],
     )
 
@@ -400,7 +431,7 @@ def admin_manage_loan(loan_id, action):
         token = operation(f"{action}:{loan_id}")
         try:
             if action == "editar":
-                management.edit_pending(loan_id, request.form.get("name"), request.form.get("room"), request.form.get("quantity"), request.form.get("start_time"), request.form.get("expected_return"), request.form.get("reason"), token)
+                management.edit_pending(loan_id, request.form.get("name"), request.form.get("room"), request.form.get("quantity"), request.form.get("start_time"), request.form.get("expected_return"), request.form.get("reason"), token, use_date=request.form.get("use_date"))
             elif action == "prorrogar":
                 management.extend_loan(loan_id, request.form.get("expected_return"), request.form.get("reason"), token)
             else:

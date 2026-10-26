@@ -11,8 +11,8 @@
   <a class="skip-link" href="#main-content">Pular para o conteúdo</a>
   <div class="page">
     <header class="site-header">
-      <a href="{{ url_for('retirada') }}" class="brand">▣ Controle de Chromebooks</a>
-      {% if request.endpoint in ('retirada', 'success') %}
+      <a href="{{ url_for('retirada') }}" class="brand">{% if session.get('admin') and request.endpoint not in ('retirada','review_request','success') %}<img class="sinodal-logo" src="{{ url_for('static',filename='sinodal.png') }}" alt="Sinodal">{% endif %}Chromebooks</a>
+      {% if request.endpoint in ('retirada', 'review_request', 'success') %}
       <nav aria-label="Acesso da TI"><a href="{{ url_for('admin_login') }}">Painel</a></nav>
       {% elif session.get('admin') and request.endpoint != 'admin_login' %}
       <nav aria-label="Painel TI">

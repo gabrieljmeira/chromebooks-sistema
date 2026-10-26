@@ -1,30 +1,12 @@
-<div class="stats" aria-label="Resumo do painel">
-  <div class="stat"><span>Aparelhos disponíveis</span><strong>{{ data.available }} <small>/ 20</small></strong><span>Na TI · {{ data.unavailable|length }} indisponível(is)</span><a href="{{ url_for('admin_inventory') }}">Gerenciar aparelhos</a></div>
-  <div class="stat"><span>Aguardando entrega</span><strong>{{ data.pending|length }}</strong><a href="#pending-loans">Ver pedidos</a></div>
-  <div class="stat"><span>Empréstimos ativos</span><strong>{{ data.active|length }}</strong><a href="#active-loans">Ver aparelhos em uso</a></div>
-  <div class="stat"><span>Empréstimos atrasados</span><strong class="danger-text">{{ data.active|selectattr('overdue')|list|length }}</strong><span>Conferir devoluções</span></div>
-</div>
+<div class="stats" aria-label="Aparelhos"><div class="stat"><span>Na TI</span><strong>{{ data.available }}</strong><a href="{{ url_for('admin_inventory') }}">Gerenciar aparelhos</a></div><div class="stat"><span>Em uso</span><strong>{{ data.active|sum(attribute='remaining') }}</strong><span>Aparelhos emprestados</span></div><div class="stat"><span>Em manutenção</span><strong>{{ data.unavailable|length }}</strong><a href="{{ url_for('admin_inventory') }}">Conferir aparelhos</a></div></div>
 {% if data.shortages %}<p class="notice error">Estoque reduzido ou devoluções atrasadas comprometem os pedidos {% for id in data.shortages %}#{{ id }}{{ ', ' if not loop.last else '' }}{% endfor %}. Confira as reservas antes das entregas.</p>{% endif %}
 {% if data.blocked %}<p class="notice error">Há empréstimos antigos com códigos não conferidos. Novos pedidos e entregas estão bloqueados. <a href="{{ url_for('admin_history',status='review') }}">Conferir registros antigos</a>.</p>{% endif %}
-<section id="pending-loans" class="loan-section">
+<div class="operating-tabs" role="tablist" aria-label="Pedidos"><button type="button" role="tab" id="tab-deliver" aria-controls="pending-loans" aria-selected="true" data-dashboard-tab="pending-loans">Entregar ({{ data.pending|rejectattr('scheduled_later')|list|length }})</button><button type="button" role="tab" id="tab-active" aria-controls="active-loans" aria-selected="false" data-dashboard-tab="active-loans">Em uso ({{ data.active|length }})</button><button type="button" role="tab" id="tab-scheduled" aria-controls="scheduled-loans" aria-selected="false" data-dashboard-tab="scheduled-loans">Agendados ({{ data.pending|selectattr('scheduled_later')|list|length }})</button></div><section role="tabpanel" aria-labelledby="tab-deliver" id="pending-loans" class="loan-section">
 <div class="section-heading"><h2>Aguardando entrega pela TI</h2><span class="pill neutral">{{ data.pending|length }} {{ "pedido" if data.pending|length == 1 else "pedidos" }}</span></div>
-{% for loan in data.pending %}
-<article class="panel loan-card">
-  <div class="card-heading"><div><span class="room-label">Sala {{ loan.room }}</span><h3>{{ loan.professor_name }}</h3><span class="hint">Pedido #{{ loan.id }} · {{ loan.quantity }} {{ "aparelho" if loan.quantity == 1 else "aparelhos" }}</span></div>
-    <span class="pill {{ 'late' if loan.expired else 'neutral' }}">{{ 'Prazo encerrado' if loan.expired else ('Agendado' if loan.kind=='scheduled' else 'Pedir agora') }}</span></div>
-  <dl class="loan-times"><div><dt>Início solicitado</dt><dd>{{ loan.start_at_label }}</dd></div><div><dt>Devolução prevista</dt><dd>{{ loan.expected_return_at_label }}</dd></div></dl>
-  {% if loan.expired %}<p class="notice warning">O horário previsto passou sem entrega. Cancele este pedido e registre outro se ainda for necessário.</p>{% elif loan.scheduled_later %}<p class="hint">Entrega programada para mais tarde. Antecipações são conferidas novamente para evitar conflitos.</p>{% endif %}
-  <details class="loan-action" id="delivery-{{ loan.id }}"><summary>{{ 'Encerrar pedido pendente' if loan.expired else 'Selecionar aparelhos para entrega' }}</summary>
-  {% if not loan.expired %}<form method="post" data-device-count="{{ loan.quantity }}" action="{{ url_for('admin_action',action='entregar',loan_id=loan.id) }}">
-    <input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="operation" value="{{ form_token('entregar:' ~ loan.id) }}">
-    {% with devices=data.free,legend='Selecione os ' ~ loan.quantity ~ ' aparelhos efetivamente entregues',quick_select=loan.quantity,selection_blocked=data.blocked %}{% include '_devices.html' %}{% endwith %}
-    <button class="primary" {% if data.blocked or data.available < loan.quantity %}disabled{% endif %}>Registrar entrega</button>
-    {% if data.available < loan.quantity %}<p class="hint">Aguarde a devolução dos aparelhos necessários.</p>{% endif %}
-  </form><p><a href="{{ url_for('admin_manage_loan',loan_id=loan.id,action='editar') }}">Editar pedido e horário</a></p>{% endif %}
-  <form class="cancel-form" method="post" action="{{ url_for('admin_action',action='cancelar',loan_id=loan.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="operation" value="{{ form_token('cancelar:' ~ loan.id) }}"><button class="ghost">Cancelar pedido</button></form></details>
-</article>{% else %}<div class="empty-state"><strong>Nenhuma entrega pendente</strong><p>Os novos pedidos dos professores aparecerão aqui.</p></div>{% endfor %}
+{% for loan in data.pending if not loan.scheduled_later %}
+{% include '_pending_card.html' %}{% else %}<div class="empty-state"><strong>Nenhuma entrega pendente</strong><p>Os novos pedidos dos professores aparecerão aqui.</p></div>{% endfor %}
 </section>
-<section id="active-loans" class="loan-section">
+<section role="tabpanel" aria-labelledby="tab-active" id="active-loans" class="loan-section">
 <div class="section-heading"><h2>Entregues e ainda em uso</h2><span class="pill neutral">{{ data.active|length }} {{ "empréstimo" if data.active|length == 1 else "empréstimos" }}</span></div>
 {% for loan in data.active|sort(attribute='expected_return_at')|sort(attribute='overdue',reverse=true) %}
 <article class="panel loan-card {{ 'overdue' if loan.overdue else ('due-soon' if loan.due_soon else '') }}">
@@ -36,3 +18,6 @@
   {% with devices=loan.outstanding,legend='Selecione apenas os aparelhos recebidos pela TI' %}{% include '_devices.html' %}{% endwith %}<button class="primary">Registrar devolução</button></form></details><div class="quick-links"><a href="{{ url_for('admin_manage_loan',loan_id=loan.id,action='prorrogar') }}">Prorrogar devolução</a><a href="{{ url_for('admin_manage_loan',loan_id=loan.id,action='corrigir') }}">Corrigir registro</a></div>{% endif %}
 </article>{% else %}<div class="empty-state"><strong>Nenhum empréstimo em uso</strong><p>As entregas registradas pela TI aparecerão aqui até a devolução completa.</p></div>{% endfor %}
 </section>
+
+<section id="scheduled-loans" role="tabpanel" aria-labelledby="tab-scheduled" class="loan-section"><h2>Agendados</h2>
+{% for group in data.pending|selectattr('scheduled_later')|groupby('use_date') %}<h3>{{ group.grouper[8:10] }}/{{ group.grouper[5:7] }}/{{ group.grouper[:4] }}</h3>{% for loan in group.list %}{% include '_pending_card.html' %}{% endfor %}{% else %}<p>Nenhum agendamento pendente.</p>{% endfor %}</section>
