@@ -1,4 +1,4 @@
-for (const field of document.querySelectorAll('input[inputmode="numeric"]')) {
+for (const field of document.querySelectorAll('#start_time, #expected_return')) {
   field.addEventListener('input', () => {
     const cursor = field.selectionStart ?? field.value.length;
     const before = field.value.slice(0, cursor).replace(/\D/g, '').length;
@@ -38,7 +38,10 @@ updateKind();
     availability.dataset.state = state;
   }
   function showQuantity() {
-    quantity.max = String(available === null ? 20 : available);
+    const maximum = available === null ? 20 : available;
+    quantity.max = String(maximum);
+    document.getElementById('quantity-minus').disabled = Number(quantity.value) <= 1;
+    document.getElementById('quantity-plus').disabled = Number(quantity.value) >= maximum;
     const exceeds = available !== null && Number(quantity.value) > available;
     const message = exceeds ? available === 0
       ? 'Nenhum Chromebook disponível. Escolha outro período.'
@@ -126,7 +129,12 @@ updateKind();
   for (const field of [kind, start, end, document.getElementById("use_date")]) field.addEventListener('input', schedule);
   room.addEventListener('change', showSelection);
   quantity.addEventListener('change', showQuantity);
-  quantity.addEventListener('input', showQuantity);
+  quantity.addEventListener('input', () => {
+    if (quantity.value !== '' && Number.isFinite(Number(quantity.value))) {
+      quantity.value = String(Math.min(20, Math.max(1, Math.trunc(Number(quantity.value)))));
+    }
+    showQuantity();
+  });
   for(const [id,delta] of [['quantity-minus',-1],['quantity-plus',1]]) document.getElementById(id).addEventListener('click',()=>{const next=Number(quantity.value)+delta;const max=available===null?20:available;if(Number.isInteger(next)&&next>=1&&next<=max){quantity.value=next;showQuantity();}});
   document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
   setInterval(() => { if (!document.hidden) check(); }, 30000);

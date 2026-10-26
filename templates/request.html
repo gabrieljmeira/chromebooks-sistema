@@ -24,7 +24,7 @@
       <span id="availability-detail">Informe os horários para ver quantos estão disponíveis.</span>
     </div>
     <label for="quantity">Quantidade</label>
-    <div class="quantity-control"><button type="button" id="quantity-minus" aria-label="Diminuir quantidade">−</button><input type="number" id="quantity" name="quantity" min="1" max="20" required value="{{ request.form.get('quantity',1) }}" aria-describedby="device-availability quantity-status"><button type="button" id="quantity-plus" aria-label="Aumentar quantidade">+</button></div>
+    <div class="quantity-control"><button type="button" id="quantity-minus" aria-label="Diminuir quantidade">−</button><input type="number" inputmode="numeric" step="1" id="quantity" name="quantity" min="1" max="20" required value="{{ request.form.get('quantity',1) }}" aria-describedby="device-availability quantity-status"><button type="button" id="quantity-plus" aria-label="Aumentar quantidade">+</button></div>
     <p id="quantity-status" class="hint" hidden></p>
     <label for="room">Sala de uso</label>
     <select id="room" name="room" required aria-describedby="room-status">
