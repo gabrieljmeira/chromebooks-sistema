@@ -147,7 +147,7 @@ def test_management_forms_and_diagnostics(client):
     assert b">Contas<" not in page.data
     assert client.get("/admin/contas").status_code == 404
     assert client.post("/admin/contas", data=fields(page, "/admin/logout")).status_code == 404
-    for path in ("/admin/inventario","/admin/diagnostico",f"/admin/pedido/{a}/editar"):
+    for path in ("/admin/inventario",f"/admin/pedido/{a}/editar"):
         assert client.get(path).status_code==200
     path=f"/admin/pedido/{a}/editar"
     data=fields(client.get(path))
@@ -178,7 +178,7 @@ def test_existing_individual_access_and_audit_remain_compatible(client):
     assert client.get("/admin/estado").status_code==401
     assert user_login(client,"","senha-exclusiva-teste").status_code==401
     assert user_login(client,"gabriel","senha-individual-teste").status_code==303
-    assert b"Senha compartilhada" not in client.get("/admin/diagnostico").data
+    assert client.get("/admin/diagnostico").status_code == 404
     a=loan()
     action=f"/admin/entregar/{a}"
     data=fields(client.get("/admin"),action)
@@ -263,14 +263,11 @@ def test_corrupt_backup_is_rejected_without_publishing_destination(tmp_path):
     assert not target.exists()
 
 
-def test_backup_download_requires_csrf_and_manager(client):
-    login(client)
-    assert client.post("/admin/backup").status_code==400
-    data=fields(client.get("/admin/diagnostico"),"/admin/backup")
-    response=client.post("/admin/backup",data=data)
-    assert response.status_code==200
-    assert response.json["format"]==backups.FORMAT
-    assert response.headers["Content-Disposition"].startswith("attachment;")
+def test_system_and_web_backup_removed(client):
+    page = login(client)
+    assert b">Sistema<" not in page.data
+    assert client.get("/admin/diagnostico").status_code == 404
+    assert client.post("/admin/backup", data=fields(page, "/admin/logout")).status_code == 404
 
 
 def test_delivery_feed_uses_current_planned_time(client):

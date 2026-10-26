@@ -8,7 +8,6 @@ import sqlite3
 import time
 import csv
 import io
-import json
 from datetime import date, timedelta
 from functools import wraps
 
@@ -31,7 +30,6 @@ from werkzeug.security import check_password_hash
 import services
 import management
 import accounts
-import backups
 from database import DatabaseUnavailable, connect, one, rows
 from rooms import ROOMS
 
@@ -485,17 +483,13 @@ def health():
 @app.get("/admin/diagnostico")
 @manager_required
 def admin_diagnostics():
-    devices, _ = management.inventory()
-    checks = {"Banco": "Turso" if os.getenv("TURSO_DATABASE_URL", "").strip() else "SQLite local", "Inventário": f"{len(devices)} aparelhos cadastrados", "Acesso": "Contas individuais" if accounts.configured() else "Senha administrativa", "Alertas": "Mantenha o painel aberto, o som ativado e o computador acordado"}
-    return render_template("diagnostics.html", checks=checks)
+    abort(404)
 
 
 @app.post("/admin/backup")
 @manager_required
 def admin_backup():
-    operation("backup")
-    content = json.dumps(backups.snapshot(), ensure_ascii=False, indent=2)
-    return Response(content, mimetype="application/json", headers={"Content-Disposition": 'attachment; filename="backup-chromebooks.json"'})
+    abort(404)
 
 
 @app.post("/admin/<action>/<int:loan_id>")

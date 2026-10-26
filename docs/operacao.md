@@ -6,7 +6,7 @@ As tabelas adicionais de manutenção, contas e auditoria administrativa são cr
 
 Na Vercel, configure `SECRET_KEY`, `ADMIN_PASSWORD_HASH`, `TURSO_DATABASE_URL` e `TURSO_AUTH_TOKEN` para Production. As URLs `turso://`, `libsql://` e `https://` são aceitas. Alterar uma variável exige novo deploy. `LOCAL_DB_PATH` vale somente para execução local. Consulte [Instalação](instalacao.md) para configurar um ambiente novo.
 
-Valide `/saude` (200, `{"status":"ok"}`), faça login e confira **Sistema**. Falhas de configuração/conexão retornam 503 com orientação, sem mostrar credenciais. O comando `python scripts/check_config.py` confere o ambiente local configurado no `.env`, sem imprimir valores; ele não lê automaticamente as variáveis da Vercel.
+Valide `/saude` (200, `{"status":"ok"}`), faça login e confira o painel. Falhas de configuração/conexão retornam 503 com orientação, sem mostrar credenciais. O comando `python scripts/check_config.py` confere o ambiente local configurado no `.env`, sem imprimir valores; ele não lê automaticamente as variáveis da Vercel.
 
 ## Acesso da TI
 
@@ -35,7 +35,7 @@ Mantenha o painel aberto, interaja para ativar o som e confira volume e suspens�
 
 **Histórico → Exportar resultado em CSV** exporta todos os pedidos que combinam com os filtros, além da página visível. Inclui horários, códigos e aparelhos ainda em uso; textos que poderiam virar fórmulas são neutralizados. O CSV é um relatório, não um backup.
 
-**Sistema → Baixar backup completo** gera uma leitura consistente de todas as tabelas do aplicativo em JSON, incluindo auditoria, contas e hashes de senha. Guarde esses arquivos em local de acesso restrito à TI, separado do computador que executa o sistema. Não envie cópias ao GitHub. O diretório `backups/` é ignorado pelo Git.
+O script `scripts/backup_db.py` gera uma leitura consistente de todas as tabelas do aplicativo em JSON, incluindo auditoria e eventuais registros antigos de autenticação. Guarde esses arquivos em local de acesso restrito à TI, separado do computador que executa o sistema. Não envie cópias ao GitHub. O diretório `backups/` é ignorado pelo Git.
 
 Também é possível usar, com as credenciais do banco correto em um `.env` local:
 
