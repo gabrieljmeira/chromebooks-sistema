@@ -55,7 +55,7 @@ updateKind();
     if (checked) {
       status.className = occupied ? 'notice error' : 'hint';
       status.textContent = occupied ? 'SALA EM USO — existe outro pedido nesse intervalo ou uma devolução atrasada.'
-        : room.value ? `Sala ${room.value} disponível no intervalo informado. A confirmação ocorre ao enviar.`
+        : room.value ? `Sala ${room.value} disponível no intervalo informado. Conferida novamente ao confirmar o envio.`
         : 'Selecione uma sala disponível para o intervalo informado.';
     }
   }
@@ -98,7 +98,7 @@ updateKind();
       available = data.available;
       showAvailability(available === 0 ? 'Nenhum Chromebook disponível' :
         `${available} ${available === 1 ? 'Chromebook disponível' : 'Chromebooks disponíveis'}`,
-        available === 0 ? 'Escolha outro período para fazer o pedido.' : 'Para todo o período informado. Confirmado ao enviar.',
+        available === 0 ? 'Escolha outro período para fazer o pedido.' : 'Para todo o período informado.',
         available === 0 ? 'empty' : '');
       for (const option of (quantity.options || [])) option.disabled = Number(option.value) > available;
       showQuantity();

@@ -16,6 +16,7 @@
     if (soundToggle) {
       soundToggle.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z"/>' + (muted || audio?.state !== 'running' ? '<path d="m17 9 5 6m0-6-5 6"/>' : '<path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>') + '</svg>';
       soundToggle.setAttribute('aria-label', muted || audio?.state !== 'running' ? 'Ativar som' : 'Silenciar som');
+      soundToggle.setAttribute('title', soundStatus.textContent);
       soundToggle.setAttribute('aria-pressed', String(!muted && audio?.state === 'running'));
     }
   }
@@ -47,6 +48,7 @@
       showSound();
       if (queuedSound && audio.state === 'running') beep();
     } catch {
+      soundStatus.classList?.remove('sr-only');
       soundStatus.textContent = 'Áudio bloqueado. Confira as permissões de som do navegador.';
     }
   }
@@ -75,7 +77,7 @@
   let selectedTab = 'pending-loans';
   try {const stored=sessionStorage.getItem('chromebooks:tab');if(['pending-loans','active-loans','scheduled-loans'].includes(stored))selectedTab=stored;}catch{}
   function updateTabs(){
-    content.querySelectorAll('[data-dashboard-tab]').forEach(button=>button.setAttribute('aria-selected',String(button.dataset.dashboardTab===selectedTab)));
+    content.querySelectorAll('[role=tab][data-dashboard-tab]').forEach(button=>button.setAttribute('aria-selected',String(button.dataset.dashboardTab===selectedTab)));
     for(const id of ['pending-loans','active-loans','scheduled-loans']){const panel=document.getElementById(id);if(panel)panel.hidden=id!==selectedTab;}
   }
   content.addEventListener('click',event=>{const button=event.target.closest('[data-dashboard-tab]');if(button){selectedTab=button.dataset.dashboardTab;try{sessionStorage.setItem('chromebooks:tab',selectedTab);}catch{}updateTabs();}});
