@@ -8,13 +8,11 @@ Na Vercel, configure `SECRET_KEY`, `ADMIN_PASSWORD_HASH`, `TURSO_DATABASE_URL` e
 
 Valide `/saude` (200, `{"status":"ok"}`), faça login e confira **Sistema**. Falhas de configuração/conexão retornam 503 com orientação, sem mostrar credenciais. O comando `python scripts/check_config.py` confere o ambiente local configurado no `.env`, sem imprimir valores; ele não lê automaticamente as variáveis da Vercel.
 
-## Contas individuais
+## Acesso da TI
 
-Até existir a primeira conta, a senha compartilhada funciona como antes. Em **Contas**, crie a primeira conta como **Gestor da TI**. Você será desconectado e deverá entrar com usuário e senha novos. Depois disso `ADMIN_PASSWORD_HASH` não permite mais acesso ao painel, mesmo que uma conta seja desativada. Alterações da senha individual são feitas em **Minha senha** ou por um gestor em **Contas**; não dependem de deploy.
+O painel usa a senha administrativa configurada em `ADMIN_PASSWORD_HASH`. A opção de cadastro e gerenciamento de contas foi retirada. A troca dessa senha é feita na configuração da hospedagem e exige novo deploy; consulte as instruções de instalação.
 
-Técnicos registram entregas, devoluções, manutenção, edição, prorrogação e correções, e exportam o histórico. Gestores também administram contas, consultam Sistema e baixam backups completos. A última conta de gestor ativa não pode ser desativada ou rebaixada. Senhas têm mínimo de 12 caracteres; hashes são gerados no servidor e não são apresentados nas telas ou na auditoria. Mudanças de senha, perfil ou situação invalidam as sessões da conta. O prazo absoluto das sessões continua sendo de oito horas.
-
-Quem já administra as credenciais do banco pode recuperar uma conta com `python scripts/reset_account.py USUARIO`. O programa solicita a nova senha duas vezes sem exibi-la, reativa a conta como gestor e registra a recuperação na auditoria. Execute somente no computador administrativo configurado para o banco correto. Não há recuperação por rota pública nem retorno automático à senha compartilhada.
+Se já existiam contas individuais antes dessa alteração, seus registros e a autenticação continuam compatíveis para evitar perda de acesso. Elas não podem ser criadas nem gerenciadas pelo painel. O histórico e os backups existentes são preservados.
 
 ## Empréstimos e manutenção
 

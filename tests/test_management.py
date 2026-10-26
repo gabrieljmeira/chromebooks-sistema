@@ -143,8 +143,11 @@ def test_reopen_return_cannot_overbook_or_take_reserved_room():
 
 def test_management_forms_and_diagnostics(client):
     a=loan()
-    login(client)
-    for path in ("/admin/inventario","/admin/contas","/admin/diagnostico",f"/admin/pedido/{a}/editar"):
+    page = login(client)
+    assert b">Contas<" not in page.data
+    assert client.get("/admin/contas").status_code == 404
+    assert client.post("/admin/contas", data=fields(page, "/admin/logout")).status_code == 404
+    for path in ("/admin/inventario","/admin/diagnostico",f"/admin/pedido/{a}/editar"):
         assert client.get(path).status_code==200
     path=f"/admin/pedido/{a}/editar"
     data=fields(client.get(path))
@@ -168,12 +171,10 @@ def user_login(client, username, password):
     return client.post("/admin/login",data=data)
 
 
-def test_first_account_ends_shared_access_and_audits_actor(client):
+def test_existing_individual_access_and_audit_remain_compatible(client):
     login(client)
-    page=client.get("/admin/contas")
-    data=fields(page)
-    data.update(username="gabriel",password="senha-individual-teste",role="manager")
-    assert client.post("/admin/contas",data=data).status_code==303
+    assert client.get("/admin/contas").status_code == 404
+    accounts.create_user("gabriel","senha-individual-teste","manager",token())
     assert client.get("/admin/estado").status_code==401
     assert user_login(client,"","senha-exclusiva-teste").status_code==401
     assert user_login(client,"gabriel","senha-individual-teste").status_code==303

@@ -447,28 +447,14 @@ def admin_manage_loan(loan_id, action):
 @app.route("/admin/contas", methods=["GET", "POST"])
 @manager_required
 def admin_accounts():
-    if request.method == "POST":
-        token = operation("accounts")
-        try:
-            if request.form.get("user_id"):
-                accounts.update_user(request.form.get("user_id"), request.form.get("role"), request.form.get("active") == "1", request.form.get("password"), token)
-            else:
-                accounts.create_user(request.form.get("username"), request.form.get("password"), request.form.get("role"), token, bootstrap=not session.get("user_id"))
-            flash("Conta salva. Alterações de acesso encerram as sessões anteriores dessa conta.", "success")
-            if not session.get("user_id") or str(session.get("user_id")) == request.form.get("user_id"):
-                session.clear()
-                return redirect(url_for("admin_login"), 303)
-        except services.ValidationError as exc:
-            flash(str(exc), "error")
-        return redirect(url_for("admin_accounts"), 303)
-    return render_template("accounts.html", users=accounts.list_users())
+    abort(404)
 
 
 @app.route("/admin/minha-senha", methods=["GET", "POST"])
 @admin_required
 def admin_password():
     if not session.get("user_id"):
-        return redirect(url_for("admin_accounts"))
+        return redirect(url_for("admin_dashboard"))
     if request.method == "POST":
         token = operation("password")
         try:
@@ -500,7 +486,7 @@ def health():
 @manager_required
 def admin_diagnostics():
     devices, _ = management.inventory()
-    checks = {"Banco": "Turso" if os.getenv("TURSO_DATABASE_URL", "").strip() else "SQLite local", "Inventário": f"{len(devices)} aparelhos cadastrados", "Acesso": "Contas individuais" if accounts.configured() else "Senha compartilhada: crie a primeira conta de gestor", "Alertas": "Mantenha o painel aberto, o som ativado e o computador acordado"}
+    checks = {"Banco": "Turso" if os.getenv("TURSO_DATABASE_URL", "").strip() else "SQLite local", "Inventário": f"{len(devices)} aparelhos cadastrados", "Acesso": "Contas individuais" if accounts.configured() else "Senha administrativa", "Alertas": "Mantenha o painel aberto, o som ativado e o computador acordado"}
     return render_template("diagnostics.html", checks=checks)
 
 

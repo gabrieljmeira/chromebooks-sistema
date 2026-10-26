@@ -23,9 +23,9 @@ Os agendamentos podem ser feitos para **hoje, amanhã ou depois de amanhã**, co
 | Ajustes operacionais | Edição de pedidos pendentes, prorrogação de uso e correções com motivo e registro de auditoria |
 | Alertas | Avisos sonoros de novos pedidos, entregas agendadas e devoluções próximas ou vencidas |
 | Histórico | Consulta por protocolo, professor, sala, data e situação; exportação dos resultados em CSV |
-| Administração | Contas individuais de técnicos e gestores, diagnósticos e backup completo em JSON |
+| Administração | Acesso protegido por senha, diagnósticos e backup completo em JSON |
 
-O formulário dos professores é público. O painel da TI exige autenticação; recursos de contas, diagnósticos e backup completo são restritos aos gestores.
+O formulário dos professores é público. O painel da TI exige autenticação; diagnósticos e backup completo ficam na área administrativa.
 
 ## Regras de disponibilidade
 

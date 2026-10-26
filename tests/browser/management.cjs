@@ -74,14 +74,9 @@ const { spawn } = require('node:child_process');
     if(output)await page.screenshot({path:path.join(output,'auditoria-390.png'),fullPage:true});
     const csvEvent=page.waitForEvent('download');await page.getByRole('link',{name:'Exportar resultado em CSV'}).click();
     const csv=await csvEvent;assert.equal(csv.suggestedFilename(),'historico-chromebooks.csv');
-    await page.goto(base+'/admin/contas');await page.locator('#username').fill('gabriel.ti');await page.locator('#password').fill('senha-individual-browser');
-    await page.getByRole('button',{name:'Criar conta'}).click();await page.waitForURL('**/admin/login');
-    await page.locator('#username').fill('gabriel.ti');await page.locator('#password').fill('senha-individual-browser');
-    await page.getByRole('button',{name:'Entrar',exact:true}).click();await page.waitForURL('**/admin');
-    await page.goto(base+'/admin/contas');
-    await page.locator('#username').fill('tecnico');await page.locator('#password').fill('senha-tecnico-browser');await page.selectOption('#role','technician');
-    await page.getByRole('button',{name:'Criar conta'}).click();await page.waitForURL('**/admin/contas');
-    for(const url of ['/admin','/admin/contas','/admin/diagnostico','/admin/pedido/1/corrigir']){
+    assert.equal(await page.getByRole('link',{name:'Contas',exact:true}).count(),0);
+    assert.equal((await page.request.get(base+'/admin/contas')).status(),404);
+    for(const url of ['/admin','/admin/diagnostico','/admin/pedido/1/corrigir']){
       await page.goto(base+url);
       for(const width of [320,390,768,1280]){
         await page.setViewportSize({width,height:900});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`overflow ${url} ${width}`);
@@ -91,15 +86,10 @@ const { spawn } = require('node:child_process');
     const backupEvent=page.waitForEvent('download');await page.getByRole('button',{name:'Baixar backup completo'}).click();
     const backup=await backupEvent;
     const payload=JSON.parse(fs.readFileSync(await backup.path(),'utf8'));
-    assert.equal(payload.format,'chromebooks-backup-v1');assert.equal(payload.tables.admin_users.length,2);
+    assert.equal(payload.format,'chromebooks-backup-v1');assert.equal(payload.tables.admin_users.length,0);
     assert.equal(payload.tables.unavailable_devices.length,1);
     await page.getByRole('button',{name:'Sair',exact:true}).click();await page.waitForURL('**/admin/login');
-    await page.locator('#username').fill('tecnico');await page.locator('#password').fill('senha-tecnico-browser');
-    await page.getByRole('button',{name:'Entrar',exact:true}).click();await page.waitForURL('**/admin');
-    assert.equal(await page.getByRole('link',{name:'Contas',exact:true}).count(),0);
-    assert.equal((await page.request.get(base+'/admin/contas')).status(),403);
-    assert.equal((await page.request.get(base+'/admin/inventario')).status(),200);
     assert.deepEqual(errors,[]);
-    console.log('PASS: manutenção, edição, entrega, retomar atualização, prorrogação, correções auditadas, CSV, contas individuais, permissões, backup e telas 320–1280 px.');
+    console.log('PASS: manutenção, edição, entrega, retomar atualização, prorrogação, correções auditadas, CSV, acesso administrativo, backup e telas 320–1280 px.');
   } finally {if(browser)await browser.close();server.kill();}
 })().catch(error=>{console.error(error);process.exit(1)});
