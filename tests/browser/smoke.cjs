@@ -30,7 +30,7 @@ const { spawn } = require('node:child_process');
     const openForm=()=>page.goto(base+'/retirada');
     const set=(id,value)=>page.locator('#'+id).fill(value);
     await openForm();
-    assert.equal(await page.locator('#room option').count(),26);
+    assert.equal(await page.locator('#room option').count(),27);
     assert.equal(await page.locator('#room option[value="2010"]').count(),0);
     await set('name','Professora Ana');await page.locator('#quantity').fill('2');
     await page.selectOption('#room','210');await set('expected_return','11:00');

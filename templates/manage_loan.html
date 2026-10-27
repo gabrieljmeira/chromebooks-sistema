@@ -4,7 +4,7 @@
 <form method="post" class="stack"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="operation" value="{{ request.form.get('operation') or form_token(action ~ ':' ~ loan.id) }}">
 {% if action == 'editar' %}
 <label for="name">Professor</label><input name="name" id="name" required minlength="3" maxlength="100" value="{{ request.form.get('name',loan.professor_name) }}">
-<label for="room">Sala</label><select name="room" id="room" required>{% for room in rooms %}<option value="{{ room }}" {% if request.form.get('room',loan.room)==room %}selected{% endif %}>Sala {{ room }}</option>{% endfor %}</select>
+<label for="room">Sala</label><select name="room" id="room" required>{% for room in rooms %}<option value="{{ room }}" {% if request.form.get('room',loan.room)==room %}selected{% endif %}>Sala {{ room|room_name }}</option>{% endfor %}</select>
 <label for="quantity">Quantidade</label><select name="quantity" id="quantity">{% for n in range(1,21) %}<option value="{{ n }}" {% if request.form.get('quantity',loan.quantity)|int==n %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
 <label for="use_date">Data de uso</label><input id="use_date" name="use_date" type="date" min="{{ schedule_today }}" max="{{ schedule_last }}" required value="{{ request.form.get('use_date',loan.start_at[:10]) }}"><label for="start_time">Início solicitado</label><input name="start_time" id="start_time" type="time" required value="{{ request.form.get('start_time',loan.start_at[11:16]) }}">
 {% endif %}

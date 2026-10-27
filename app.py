@@ -31,10 +31,11 @@ import services
 import management
 import accounts
 from database import DatabaseUnavailable, connect, one, rows
-from rooms import ROOMS
+from rooms import ROOMS, room_name
 
 load_dotenv()
 app = Flask(__name__)
+app.jinja_env.filters["room_name"] = room_name
 secret = os.getenv("SECRET_KEY", "")
 if len(secret) < 32 or secret.startswith("COLOQUE_AQUI"):
     raise RuntimeError("Defina SECRET_KEY aleatória com pelo menos 32 caracteres.")

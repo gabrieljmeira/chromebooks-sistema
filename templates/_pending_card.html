@@ -1,5 +1,5 @@
 <article class="panel loan-card">
-  <div class="card-heading"><div><span class="room-label">Sala {{ loan.room }}</span><h3>{{ loan.professor_name }}</h3><span class="hint">Pedido #{{ loan.id }} · {{ loan.quantity }} {{ "aparelho" if loan.quantity == 1 else "aparelhos" }}</span></div>
+  <div class="card-heading"><div><span class="room-label">Sala {{ loan.room|room_name }}</span><h3>{{ loan.professor_name }}</h3><span class="hint">Pedido #{{ loan.id }} · {{ loan.quantity }} {{ "aparelho" if loan.quantity == 1 else "aparelhos" }}</span></div>
     <span class="pill {{ 'late' if loan.expired else 'neutral' }}">{{ 'Prazo encerrado' if loan.expired else ('Agendado' if loan.kind=='scheduled' else 'Pedir agora') }}</span></div>
   <dl class="loan-times"><div><dt>Início solicitado</dt><dd>{{ loan.start_at_label }}</dd></div><div><dt>Devolução prevista</dt><dd>{{ loan.expected_return_at_label }}</dd></div></dl>
   {% if loan.expired %}<p class="notice warning">O horário previsto passou sem entrega. Cancele este pedido e registre outro se ainda for necessário.</p>{% elif loan.scheduled_later %}<p class="hint">Entrega programada para mais tarde. Antecipações são conferidas novamente para evitar conflitos.</p>{% endif %}

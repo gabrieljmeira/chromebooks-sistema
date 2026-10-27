@@ -58,13 +58,13 @@ updateKind();
     if (checked) {
       status.className = occupied ? 'notice error' : 'hint';
       status.textContent = occupied ? 'SALA EM USO — existe outro pedido nesse intervalo ou uma devolução atrasada.'
-        : room.value ? `Sala ${room.value} disponível no intervalo informado. Conferida novamente ao confirmar o envio.`
+        : room.value ? `Sala ${room.value === '214' ? '214 — Sala de música' : room.value} disponível no intervalo informado. Conferida novamente ao confirmar o envio.`
         : 'Selecione uma sala disponível para o intervalo informado.';
     }
   }
   function reset() {
     checked = false; busy = new Set(); available = null;
-    for (const option of options) { option.disabled = false; option.textContent = `Sala ${option.value}`; }
+    for (const option of options) { option.disabled = false; option.textContent = `Sala ${option.value === '214' ? '214 — Sala de música' : option.value}`; }
     for (const option of (quantity.options || [])) option.disabled = false;
     showQuantity();
     room.setCustomValidity(''); room.setAttribute('aria-invalid', 'false'); status.className = 'hint';
@@ -109,7 +109,7 @@ updateKind();
       for (const option of options) {
         const occupied = busy.has(option.value);
         option.disabled = occupied;
-        option.textContent = `Sala ${option.value}${occupied ? ' — SALA EM USO' : ''}`;
+        option.textContent = `Sala ${option.value === '214' ? '214 — Sala de música' : option.value}${occupied ? ' — SALA EM USO' : ''}`;
       }
       showSelection();
     } catch (error) {

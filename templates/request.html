@@ -29,7 +29,7 @@
     <label for="room">Sala de uso</label>
     <select id="room" name="room" required aria-describedby="room-status">
       <option value="">Selecione a sala</option>
-      {% for room in rooms %}<option value="{{ room }}" {% if request.form.get('room') == room %}selected{% endif %}>Sala {{ room }}</option>{% endfor %}
+      {% for room in rooms %}<option value="{{ room }}" {% if request.form.get('room') == room %}selected{% endif %}>Sala {{ room|room_name }}</option>{% endfor %}
     </select>
     <p id="room-status" class="hint" role="status">Informe os horários para consultar as salas disponíveis.</p>
     <noscript><p class="hint">Ative o JavaScript para consultar a disponibilidade. Salas e quantidade também serão conferidas ao enviar o pedido.</p></noscript>
